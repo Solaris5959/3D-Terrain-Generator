@@ -131,7 +131,7 @@ class TerrainMaterial extends THREE.ShaderMaterial {
 
 extend({ TerrainMaterial });
 
-export default function Terrain({ started }) {
+export default function Terrain() {
   // UseMemo prevents the geometry from rebuilding every frame
   const geometry = useMemo(
     () => new THREE.PlaneGeometry(100, 100, 256, 256),
@@ -139,14 +139,14 @@ export default function Terrain({ started }) {
   );
 
   // Leva Controls for terrain parameters
-  const { seed, scale, heightMultiplier, octaves, persistence } = useControls(
+  const { Seed, Scale, Height, Octaves, Persistence } = useControls(
     "Terrain Settings",
     {
-      seed: { value: 42, min: 0, max: 1000, step: 1 },
-      scale: { value: 10.0, min: 1.0, max: 50.0 },
-      heightMultiplier: { value: 15.0, min: 1.0, max: 50.0 },
-      octaves: { value: 4, min: 1, max: 8, step: 1 },
-      persistence: { value: 0.5, min: 0.1, max: 1.0 },
+      Seed: { value: 280, min: 0, max: 1000, step: 1 },
+      Scale: { value: 20.0, min: 1.0, max: 50.0 },
+      Height: { value: 20.0, min: 1.0, max: 50.0 },
+      Octaves: { value: 5, min: 1, max: 8, step: 1 },
+      Persistence: { value: 0.5, min: 0.1, max: 1.0 },
     },
   );
 
@@ -158,11 +158,11 @@ export default function Terrain({ started }) {
       position={[0, 0, 0]}
     >
       <terrainMaterial
-        uniforms-uSeed-value={seed}
-        uniforms-uScale-value={scale}
-        uniforms-uHeight-value={heightMultiplier}
-        uniforms-uOctaves-value={octaves}
-        uniforms-uPersistence-value={persistence}
+        uniforms-uSeed-value={Seed}
+        uniforms-uScale-value={Scale}
+        uniforms-uHeight-value={Height}
+        uniforms-uOctaves-value={Octaves}
+        uniforms-uPersistence-value={Persistence}
       />
     </mesh>
   );
