@@ -1,0 +1,73 @@
+/* src/App.css */
+/* (Keep previous reset and overlay styles) */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  overflow: hidden;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #111; /* Fallback for body */
+}
+
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  backdrop-filter: blur(15px); /* Stronger blur for aesthetic */
+  background: rgba(0, 0, 0, 0.7); /* Darker overlay */
+  transition: opacity 1s ease-in-out;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+.overlay.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* IMPROVEMENT: Dark-themed popup */
+.popup-modal {
+  background: #1a1a1a; /* Dark modal background */
+  color: #eeeeee; /* Light text */
+  padding: 50px 60px;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 15px 50px rgba(0,0,0,0.8);
+  border: 1px solid #333; /* Subtle border */
+}
+
+.popup-modal h1 {
+  font-weight: 300;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+}
+
+.popup-modal p {
+  color: #888;
+  margin-bottom: 30px;
+}
+
+/* IMPROVEMENT: Styling the button */
+.popup-modal button {
+  padding: 12px 28px;
+  background: #f0f0f0; /* Contrast light button */
+  color: #111;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  letter-spacing: 1px;
+  transition: background 0.2s;
+}
+
+.popup-modal button:hover {
+  background: #ffffff;
+}
