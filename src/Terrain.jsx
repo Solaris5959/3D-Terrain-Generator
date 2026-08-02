@@ -8,11 +8,11 @@ class TerrainMaterial extends THREE.ShaderMaterial {
     super({
       // Define uniforms for the GPU shader
       uniforms: {
-        uSeed: { value: 42.0 },
-        uScale: { value: 10.0 },
-        uHeight: { value: 15.0 },
-        uOctaves: { value: 4 },
-        uPersistence: { value: 0.5 },
+        uSeed: { value: 735.0 },
+        uScale: { value: 22.5 },
+        uHeight: { value: 12.0 },
+        uOctaves: { value: 6 },
+        uPersistence: { value: 0.45 },
       },
 
       vertexShader: `
@@ -23,6 +23,7 @@ class TerrainMaterial extends THREE.ShaderMaterial {
         uniform int uOctaves;
         uniform float uPersistence;
         varying float vHeight;
+        varying vec3 vNormal;
         
         // --- Perlin Noise Functions ---
 
@@ -100,31 +101,62 @@ class TerrainMaterial extends THREE.ShaderMaterial {
           return value;
         }
 
+        // Helper function to get the elevation of the terrain at a given point, using FBM and scaling it by the height multiplier
+        float getElevation(vec2 p) {
+          return fbm(p * (1.0 / uScale)) * uHeight;
+        }
+
         void main() {
-          // Calculate the noise coordinate based on the vertex position and scale
-          vec2 noiseCoord = position.xy * (1.0 / uScale);
+          // Get the height of the current vertex
+          float h = getElevation(position.xy);
           
-          // Send it through the FBM function to get the final noise value for this vertex
-          float rawNoise = fbm(noiseCoord);
+          // Calculate the tangent vectors at point position by sampling height at small offsets in x and y
+          float step = 0.01; 
+          float hx = getElevation(position.xy + vec2(step, 0.0));
+          float hy = getElevation(position.xy + vec2(0.0, step));
           
-          // Scale the noise value by the height multiplier to get the final height of the terrain at this vertex
+          vec3 t1 = vec3(step, 0.0, hx - h); // Construct the first tangent vector in the x direction
+          vec3 t2 = vec3(0.0, step, hy - h); // Construct the second tangent vector in the y direction
+          
+          // Cross product of tangents gives us the normal vector, normalize it to unit length, and transform it to world space using the model matrix
+          vec3 localNormal = normalize(cross(t1, t2));
+          vNormal = normalize(mat3(modelMatrix) * localNormal);
+          
+          // Displace the vertex along z-axis by value of height function, and pass the height to the fragment shader for lighting
           vec3 newPosition = position;
-          newPosition.z = rawNoise * uHeight; 
-          vHeight = rawNoise; 
+          newPosition.z = h; 
+          vHeight = h; 
           
-          // Set the final position of the vertex in clip space
           gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
         }
       `,
 
       fragmentShader: `
         varying float vHeight;
+        varying vec3 vNormal;
+        float ambientLightIntensity = 0.15; // Ambient Light Intensity, affects shadows
+        float diffuseLightIntensity = 0.8; // Diffuse Light Intensity, affects highlights
+        
         void main() {
-          vec3 wireframeColor = vec3(0.7, 0.7, 0.7);
-          gl_FragColor = vec4(wireframeColor, 1.0);
+          // Defines the light source coming from the top-right-front
+          vec3 lightDir = normalize(vec3(1.0, 1.0, 0.5));
+          
+          // Calculate Lambertian reflectance, dot product and clamp minimum to 0.0 to get shadows
+          float diffuse = max(dot(vNormal, lightDir), 0.0);
+          
+          // Calculate final lighting amount by ambient + diffuse, adjust globals to control the overall brightness and contrast of the terrain
+          float lighting = ambientLightIntensity + (diffuse * diffuseLightIntensity);
+          
+          // Base terrain color
+          vec3 terrainColor = vec3( 0.435, 0.318, 0.153); // #6F5127 (brown)
+          
+          // Apply lighting to the color
+          vec3 finalColor = terrainColor * lighting;
+          
+          gl_FragColor = vec4(finalColor, 1.0);
         }
       `,
-      wireframe: true,
+      wireframe: false,
     });
   }
 }
@@ -142,11 +174,11 @@ export default function Terrain() {
   const { Seed, Scale, Height, Octaves, Persistence } = useControls(
     "Terrain Settings",
     {
-      Seed: { value: 280, min: 0, max: 1000, step: 1 },
-      Scale: { value: 20.0, min: 1.0, max: 50.0 },
-      Height: { value: 20.0, min: 1.0, max: 50.0 },
-      Octaves: { value: 5, min: 1, max: 8, step: 1 },
-      Persistence: { value: 0.5, min: 0.1, max: 1.0 },
+      Seed: { value: 735, min: 0, max: 1000, step: 1 },
+      Scale: { value: 22.5, min: 1.0, max: 50.0 },
+      Height: { value: 12.0, min: 1.0, max: 50.0 },
+      Octaves: { value: 6, min: 1, max: 8, step: 1 },
+      Persistence: { value: 0.45, min: 0.1, max: 1.0 },
     },
   );
 
