@@ -12,6 +12,7 @@ export default function App() {
 
   return (
     <div style={{ width: "100vw", height: "100vh", position: "relative" }}>
+      {/* Canvas component to render the 3D scene. Sets up camera, lighting, and includes the Terrain component. */}
       <Canvas
         camera={{ position: [0, 40, 80], fov: 60 }}
         style={{
@@ -25,23 +26,18 @@ export default function App() {
       >
         <color attach="background" args={[backgroundColor]} />
 
-        <ambientLight intensity={0.2} />
-        <directionalLight
-          position={[10, 10, 5]}
-          intensity={0.8}
-          color="#aaaaaa"
-        />
-
         <Terrain started={started} />
 
+        {/* Camera controls for rotating, zooming, and panning */}
         <OrbitControls
           enablePan={true}
           enableZoom={true}
           minDistance={10}
-          maxDistance={130}
+          maxDistance={140}
         />
       </Canvas>
 
+      {/* Interface overlay component for the welcome modal and Leva panel */}
       <InterfaceOverlay started={started} setStarted={setStarted} />
     </div>
   );
