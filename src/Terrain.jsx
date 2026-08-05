@@ -11,7 +11,7 @@ class TerrainMaterial extends THREE.ShaderMaterial {
         uSeed: { value: 629.0 },
         uScale: { value: 34.5 },
         uHeight: { value: 28.5 },
-        uOctaves: { value: 6 },
+        uOctaves: { value: 7 },
         uPersistence: { value: 0.45 },
       },
 
@@ -201,7 +201,7 @@ export default function Terrain() {
       Seed: { value: 629, min: 0, max: 1000, step: 1 },
       Scale: { value: 34.5, min: 1.0, max: 50.0 },
       Height: { value: 28.5, min: 1.0, max: 50.0 },
-      Octaves: { value: 6, min: 1, max: 8, step: 1 },
+      Octaves: { value: 7, min: 1, max: 8, step: 1 },
       Persistence: { value: 0.45, min: 0.1, max: 1.0 },
     },
   );
