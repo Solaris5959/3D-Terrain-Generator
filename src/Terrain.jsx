@@ -24,6 +24,7 @@ class TerrainMaterial extends THREE.ShaderMaterial {
         uniform float uPersistence;
         varying float vHeight;
         varying vec3 vNormal;
+        varying float vIsWall;
         
         // --- Perlin Noise Functions ---
 
@@ -109,38 +110,38 @@ class TerrainMaterial extends THREE.ShaderMaterial {
         void main() {
           vec3 newPosition = position;
           
-          // Check if the vertex is on the top face of the BoxGeometry
-          // Our box is 10 units high, so top vertices start at Y = 5.0
+          // Check if current vertex is part of the terrain (top face), or the bounding box
+          bool isTopFace = normal.y > 0.5;
+          
+          // Stretch the terrain vertically based on the FBM noise function, only for the top face of the box geometry
           if (position.y > 0.0) {
-            
-            // Get the height of the current vertex (Sampling XZ for the 3D box)
             float h = getElevation(position.xz);
-            
-            // Calculate the tangent vectors at point position by sampling height at small offsets in x and z
+            newPosition.y += h; 
+            vHeight = h; 
+          }
+          
+          // Calculate normals for lighting
+          if (isTopFace) {
+            float h = getElevation(position.xz);  // Get the height of the terrain at the current vertex position
             float step = 0.01; 
+
+            // Calculate the height of two adjacent vertices in the x and z directions to compute the slope of the terrain
             float hx = getElevation(position.xz + vec2(step, 0.0));
             float hz = getElevation(position.xz + vec2(0.0, step));
             
-            // Construct the tangent vectors in the x and z directions
-            // Note: Because Y is the vertical axis for our box, the height difference goes in the Y component
+            // Calculate the tangent vectors based on the height differences in the x and z directions
             vec3 t1 = vec3(step, hx - h, 0.0); 
             vec3 t2 = vec3(0.0, hz - h, step); 
             
-            // Cross product of tangents gives us the normal vector, normalize it to unit length, 
-            // and transform it to world space using the model matrix
-            vec3 localNormal = normalize(cross(t2, t1)); // cross(t2, t1) ensures it points UP
+            // Compute normal by cross product of the tangent vectors, then transform it to world space using the model matrix for lighting 
+            vec3 localNormal = normalize(cross(t2, t1));
             vNormal = normalize(mat3(modelMatrix) * localNormal);
             
-            // Displace the vertex along y-axis by value of height function, 
-            // and pass the height to the fragment shader for lighting and coloring
-            newPosition.y += h; 
-            vHeight = h; 
-            
+            vIsWall = 0.0; // Tell the fragment shader to color this like terrain
           } else {
-            // If it is the wall or bottom, don't displace it!
-            // Just pass the default flat normal of the box so walls light flatly.
-            vHeight = -10.0; // Artificial low height to color the walls dark
-            vNormal = normalize(mat3(modelMatrix) * normal);
+            vNormal = normalize(mat3(modelMatrix) * normal); // Use the original normal for the walls and bottom of the box
+            
+            vIsWall = 1.0; // Tell the fragment shader to color this as the bounding box
           }
           
           gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
@@ -150,8 +151,10 @@ class TerrainMaterial extends THREE.ShaderMaterial {
       fragmentShader: `
         varying float vHeight;
         varying vec3 vNormal;
-        float ambientLightIntensity = 0.15; // Ambient Light Intensity, affects shadows
-        float diffuseLightIntensity = 0.9; // Diffuse Light Intensity, affects highlights
+        varying float vIsWall;
+
+        float ambientLightIntensity = 0.40; // Ambient Light Intensity, affects shadows
+        float diffuseLightIntensity = 1.5; // Diffuse Light Intensity, affects highlights
         
         void main() {
           // Defines the light source coming from the top-right-front
@@ -167,13 +170,11 @@ class TerrainMaterial extends THREE.ShaderMaterial {
           vec3 terrainColor = vec3( 0.435, 0.318, 0.153); // #6F5127 (brown) Base terrain color
           vec3 boxColor = vec3(0.15, 0.15, 0.15); // Dark chunk border color for walls and bottom
           
-          // Apply lighting to the color
-          // If vHeight is super low, it's the wall/bottom.
-          if (vHeight < -5.0 && ) {
-            color = boxColor;
+          // Apply lighting to the colors
+          if (vIsWall > 0.5) {
+            color = boxColor; // The walls and bottom
           } else {
-            // Otherwise, it's the top surface.
-            color = terrainColor;
+            color = terrainColor; // Terrain surface
           }
           
           gl_FragColor = vec4(color * lighting, 1.0);
@@ -187,9 +188,9 @@ class TerrainMaterial extends THREE.ShaderMaterial {
 extend({ TerrainMaterial });
 
 export default function Terrain() {
-  // UseMemo prevents the geometry from rebuilding every frame
+  // UseMemo prevents the geometry from rebuilding every frame, object is the geometry of the terrain mesh/bounding box
   const geometry = useMemo(
-    () => new THREE.BoxGeometry(100, 10, 100, 256, 1, 256),
+    () => new THREE.BoxGeometry(100, 1000, 100, 256, 1, 256), // (width, height, depth, widthSegments, heightSegments, depthSegments)
     [],
   );
 
@@ -207,7 +208,7 @@ export default function Terrain() {
 
   // Return the mesh with the custom shader material applied, passing in the uniforms for the shader
   return (
-    <mesh geometry={geometry} position={[0, -5, 0]}>
+    <mesh geometry={geometry} position={[0, -500, 0]}>
       <terrainMaterial
         uniforms-uSeed-value={Seed}
         uniforms-uScale-value={Scale}

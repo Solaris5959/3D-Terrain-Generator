@@ -30,10 +30,11 @@ export default function App() {
 
         {/* Camera controls for rotating, zooming, and panning */}
         <OrbitControls
-          enablePan={true}
+          enablePan={false}
           enableZoom={true}
           minDistance={10}
           maxDistance={140}
+          maxPolarAngle={Math.PI / 2 - 0.05}
         />
       </Canvas>
 
