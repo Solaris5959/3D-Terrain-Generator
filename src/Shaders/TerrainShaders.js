@@ -141,6 +141,8 @@ export const fragmentShader = `
     varying float vIsWall;
     varying float vEdgeNoise;
 
+    uniform vec3 uLightDir;
+
     uniform float uSnowLine;
     uniform float uTreeLine;
     uniform float uBlendSoftness;
@@ -154,11 +156,8 @@ export const fragmentShader = `
     float diffuseLightIntensity = 1.5; // Diffuse Light Intensity, affects highlights
     
     void main() {
-        // Defines the light source coming from the top-right-front
-        vec3 lightDir = normalize(vec3(1.0, 1.0, 0.5));
-
         // Calculate Lambertian reflectance, dot product and clamp minimum to 0.0 to get shadows
-        float diffuse = max(dot(vNormal, lightDir), 0.0);
+        float diffuse = max(dot(vNormal, uLightDir), 0.0);
 
         // Calculate final lighting amount by ambient + diffuse, adjust globals to control the overall brightness and contrast of the terrain
         float lighting = ambientLightIntensity + (diffuse * diffuseLightIntensity);
