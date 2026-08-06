@@ -1,5 +1,3 @@
-// TerrainShaders.js
-
 export const vertexShader = `
     uniform float uSeed;
     uniform float uScale;
@@ -147,7 +145,12 @@ export const fragmentShader = `
     uniform float uTreeLine;
     uniform float uBlendSoftness;
 
-    float ambientLightIntensity = 0.40; // Ambient Light Intensity, affects shadows
+    // Dynamic Biome Colors
+    uniform vec3 uSnowColor;
+    uniform vec3 uRockColor;
+    uniform vec3 uTreeColor;
+
+    float ambientLightIntensity = 0.30; // Ambient Light Intensity, affects shadows
     float diffuseLightIntensity = 1.5; // Diffuse Light Intensity, affects highlights
     
     void main() {
@@ -161,10 +164,7 @@ export const fragmentShader = `
         float lighting = ambientLightIntensity + (diffuse * diffuseLightIntensity);
         
         vec3 color;
-        vec3 terrainColor = vec3(0.435, 0.318, 0.153); // #6F5127 (brown)
         vec3 boxColor = vec3(0.15, 0.15, 0.15); // Dark chunk border
-        vec3 snowColor = vec3(0.9, 0.9, 0.9); // Snow 
-        vec3 treeLineColor = vec3(0.1, 0.3, 0.1); // Dark green 
         
         // Apply lighting to the segments of the terrain
         if (vIsWall > 0.5) {
@@ -177,10 +177,10 @@ export const fragmentShader = `
             float treeFactor = smoothstep(uTreeLine - uBlendSoftness, uTreeLine + uBlendSoftness, noisyHeight);
             float snowFactor = smoothstep(uSnowLine - uBlendSoftness, uSnowLine + uBlendSoftness, noisyHeight);
             
-            // Layer the colors from bottom to top
-            color = treeLineColor; // Base layer (valleys)
-            color = mix(color, terrainColor, treeFactor); // Blend into rock
-            color = mix(color, snowColor, snowFactor); // Blend into snow caps
+            // Layer the dynamic colors from bottom to top
+            color = uTreeColor; // Base layer (valleys)
+            color = mix(color, uRockColor, treeFactor); // Blend into rock
+            color = mix(color, uSnowColor, snowFactor); // Blend into snow caps
         }
         
         gl_FragColor = vec4(color * lighting, 1.0);

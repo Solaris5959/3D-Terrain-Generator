@@ -4,6 +4,12 @@ import { extend } from "@react-three/fiber";
 import { useControls } from "leva";
 import { vertexShader, fragmentShader } from "./Shaders/TerrainShaders";
 
+const TERRAIN_PALETTES = {
+  "Alpine": { snow: "#F2F5F8", rock: "#898c90", tree: "#3a5a49" },
+  "Vibrant": { snow: "#FFFFFF", rock: "#8A7D72", tree: "#407239" },
+  "Tundra": { snow: "#DDE5ED", rock: "#687686", tree: "#103a27" },
+};
+
 class TerrainMaterial extends THREE.ShaderMaterial {
   constructor() {
     super({
@@ -18,6 +24,10 @@ class TerrainMaterial extends THREE.ShaderMaterial {
         uSnowLine: { value: 20.0 },
         uTreeLine: { value: 5.0 },
         uBlendSoftness: { value: 2.0 },
+        // Color uniforms initialized with default palette
+        uSnowColor: { value: new THREE.Color("#F2F5F8") },
+        uRockColor: { value: new THREE.Color("#5A5E63") },
+        uTreeColor: { value: new THREE.Color("#2D4739") },
       },
       vertexShader,
       fragmentShader,
@@ -48,11 +58,27 @@ export default function Terrain() {
   );
 
   // Leva Controls for biome parameters
-  const { SnowLine, TreeLine, BlendSoftness } = useControls("Biome Settings", {
-    SnowLine: { value: 10.0, min: -20.0, max: 40.0 },
-    TreeLine: { value: -11.0, min: -40.0, max: 40.0 },
-    BlendSoftness: { value: 8.0, min: 0.1, max: 10.0 },
-  });
+  const { Palette, SnowLine, TreeLine, BlendSoftness } = useControls(
+    "Biome Settings",
+    {
+      Palette: {
+        options: TERRAIN_PALETTES,
+        value: TERRAIN_PALETTES["Alpine"],
+      },
+      SnowLine: { value: 10.0, min: -20.0, max: 40.0 },
+      TreeLine: { value: -11.0, min: -40.0, max: 40.0 },
+      BlendSoftness: { value: 8.0, min: 0.1, max: 10.0 },
+    },
+  );
+
+  // Convert hex strings to THREE.Color objects only when the dropdown changes
+  const biomeColors = useMemo(() => {
+    return {
+      snow: new THREE.Color(Palette.snow),
+      rock: new THREE.Color(Palette.rock),
+      tree: new THREE.Color(Palette.tree),
+    };
+  }, [Palette]);
 
   // Return the mesh with the custom shader material applied, passing in the uniforms for the shader
   return (
@@ -66,6 +92,9 @@ export default function Terrain() {
         uniforms-uSnowLine-value={SnowLine}
         uniforms-uTreeLine-value={TreeLine}
         uniforms-uBlendSoftness-value={BlendSoftness}
+        uniforms-uSnowColor-value={biomeColors.snow}
+        uniforms-uRockColor-value={biomeColors.rock}
+        uniforms-uTreeColor-value={biomeColors.tree}
       />
     </mesh>
   );
