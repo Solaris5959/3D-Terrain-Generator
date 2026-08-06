@@ -1,7 +1,7 @@
 import React, { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { extend, useFrame } from "@react-three/fiber";
-import { useControls } from "leva";
+import { useControls, button } from "leva";
 import { vertexShader, fragmentShader } from "./Shaders/TerrainShaders";
 
 
@@ -41,7 +41,7 @@ class TerrainMaterial extends THREE.ShaderMaterial {
 
 extend({ TerrainMaterial });
 
-export default function Terrain() {
+export default function Terrain({ started, onBake }) {
   // Reference to the terrainMaterial element
   const materialRef = useRef();
 
@@ -108,6 +108,20 @@ export default function Terrain() {
       tree: new THREE.Color(Palette.tree),
     };
   }, [Palette]);
+
+  useControls("Pipeline", {
+    "Bake & Erode": button(() => {
+      // We need a flat array to hold the heights of the 256x256 grid.
+      // 257 vertices per side (256-segment grid has 257 points)
+      const resolution = 257; 
+      const mockHeightmap = new Float32Array(resolution * resolution);
+      
+      // TODO: Extract the actual shader heights here later
+      
+      // Pass the data up to App.jsx and trigger the mode swap
+      onBake(mockHeightmap);
+    }),
+  });
 
   // Return the mesh with the custom shader material applied, passing in the uniforms for the shader
   return (

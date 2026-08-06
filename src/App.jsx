@@ -2,13 +2,22 @@ import React, { useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import Terrain from "./Terrain";
+import ErosionSim from "./ErosionSim";
 import InterfaceOverlay from "./InterfaceOverlay";
 import "./App.css";
 
 export default function App() {
   const [started, setStarted] = useState(false); // Start flag to control the display of the interface overlay and Leva panel
+  const [appMode, setAppMode] = useState("GENERATE"); // App mode state to control the current mode of the application [Generate, Erode]
+  const [terrainData, setTerrainData] = useState(null); // State to hold the terrain data generated from the Terrain component
 
   const backgroundColor = "#111111";
+
+  // Callback function to handle baking the terrain data from the Terrain component
+  const handleBakeTerrain = (heightmapArray) => {
+    setTerrainData(heightmapArray);
+    setAppMode("ERODE");
+  };
 
   return (
     <div style={{ width: "100vw", height: "100vh", position: "relative" }}>
@@ -26,7 +35,15 @@ export default function App() {
       >
         <color attach="background" args={[backgroundColor]} />
 
-        <Terrain started={started} />
+        {/* Swap components based on the current mode, keeps GPU data in scope */}
+        {appMode === "GENERATE" ? (
+          <Terrain started={started} onBake={handleBakeTerrain} />
+        ) : (
+          <ErosionSim 
+            initialData={terrainData} 
+            onReturn={() => setAppMode("GENERATE")} 
+          />
+        )}
 
         {/* Camera controls for rotating, zooming, and panning */}
         <OrbitControls
