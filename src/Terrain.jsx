@@ -5,8 +5,8 @@ import { useControls } from "leva";
 import { vertexShader, fragmentShader } from "./Shaders/TerrainShaders";
 
 const TERRAIN_PALETTES = {
-  "Alpine": { snow: "#F2F5F8", rock: "#898c90", tree: "#3a5a49" },
   "Vibrant": { snow: "#FFFFFF", rock: "#8A7D72", tree: "#407239" },
+  "Alpine": { snow: "#F2F5F8", rock: "#898c90", tree: "#3a5a49" },
   "Tundra": { snow: "#DDE5ED", rock: "#687686", tree: "#103a27" },
 };
 
@@ -25,9 +25,9 @@ class TerrainMaterial extends THREE.ShaderMaterial {
         uTreeLine: { value: 5.0 },
         uBlendSoftness: { value: 2.0 },
         // Color uniforms initialized with default palette
-        uSnowColor: { value: new THREE.Color("#F2F5F8") },
-        uRockColor: { value: new THREE.Color("#5A5E63") },
-        uTreeColor: { value: new THREE.Color("#2D4739") },
+        uSnowColor: { value: new THREE.Color("#FFFFFF") },
+        uRockColor: { value: new THREE.Color("#8A7D72") },
+        uTreeColor: { value: new THREE.Color("#407239") },
       },
       vertexShader,
       fragmentShader,
@@ -63,7 +63,7 @@ export default function Terrain() {
     {
       Palette: {
         options: TERRAIN_PALETTES,
-        value: TERRAIN_PALETTES["Alpine"],
+        value: TERRAIN_PALETTES["Vibrant"],
       },
       SnowLine: { value: 10.0, min: -20.0, max: 40.0 },
       TreeLine: { value: -11.0, min: -40.0, max: 40.0 },
