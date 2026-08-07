@@ -7,9 +7,9 @@ import {
   bakedVertexShader,
   fragmentShader,
 } from "../shared/shaders/TerrainShaders";
-import { TERRAIN_PALETTES } from "../terrain/Terrain";
+import { TERRAIN_PALETTES, TERRAIN_SEGMENTS } from "../../lib/Constants";
 
-// We create a new material class for the baked shader
+// Create a new material class for the baked shader
 class BakedTerrainMaterial extends THREE.ShaderMaterial {
   constructor() {
     super({
@@ -31,7 +31,7 @@ class BakedTerrainMaterial extends THREE.ShaderMaterial {
 extend({ BakedTerrainMaterial });
 
 export default function ErosionSim({ initialData, onReturn }) {
-  const { heights, resolution, terrainSize } = initialData;
+  const { heights, terrainSize } = initialData;
   const materialRef = useRef();
   const geometryRef = useRef();
   const [isSimulating, setIsSimulating] = useState(false);
@@ -53,15 +53,18 @@ export default function ErosionSim({ initialData, onReturn }) {
   });
 
   // Duplicate of Biome settings Leva control panel from Terrain component
-  const { Palette, SnowLine, TreeLine, BlendSoftness } = useControls("Biome Settings", {
-    Palette: {
-      options: TERRAIN_PALETTES,
-      value: TERRAIN_PALETTES["Vibrant"],
+  const { Palette, SnowLine, TreeLine, BlendSoftness } = useControls(
+    "Biome Settings",
+    {
+      Palette: {
+        options: TERRAIN_PALETTES,
+        value: TERRAIN_PALETTES["Vibrant"],
+      },
+      SnowLine: { value: 10.0, min: -20.0, max: 40.0 },
+      TreeLine: { value: -11.0, min: -40.0, max: 40.0 },
+      BlendSoftness: { value: 8.0, min: 0.1, max: 10.0 },
     },
-    SnowLine: { value: 10.0, min: -20.0, max: 40.0 },
-    TreeLine: { value: -11.0, min: -40.0, max: 40.0 },
-    BlendSoftness: { value: 8.0, min: 0.1, max: 10.0 },
-  });
+  );
 
   // Convert hex strings to THREE.Color objects only when the dropdown changes
   const biomeColors = useMemo(() => {
@@ -73,31 +76,36 @@ export default function ErosionSim({ initialData, onReturn }) {
   }, [Palette]);
 
   // Leva controls for erosion parameters
-  const { DropCount, ErosionRate } = useControls("Erosion Settings", {
+  useControls("Erosion Settings", () => ({
     DropCount: { value: 100000, min: 1000, max: 10000000, step: 1000 },
     ErosionRate: { value: 0.1, min: 0.01, max: 1.0 },
-    "Run Erosion": button(() => {
-      runSimulation();
+    "Run Erosion": button((get) => {
+      // get() reaches directly into Leva's internal state store via the folder path
+      const liveDropCount = get("Erosion Settings.DropCount");
+      const liveErosionRate = get("Erosion Settings.ErosionRate");
+
+      runSimulation(liveDropCount, liveErosionRate);
     }),
     "Return to Generator": button(() => {
       onReturn();
     }),
-  });
+  }));
 
   // Erosion simulation function that modifies the heightmap and updates the mesh geometry
-  const runSimulation = () => {
-    if (!geometryRef.current) return; // Ensure geometry is available
+  const runSimulation = (currentDropCount, currentErosionRate) => {
+    if (!geometryRef.current) return;
 
-    setIsSimulating(true); // Set flag to indicate simulation is running
+    setIsSimulating(true);
 
-    // Create a copy of the current heights to avoid mutating the original data
     const currentHeights = new Float32Array(heights);
-    const sim = new ErosionSimulator(currentHeights, resolution);
-    sim.erodeSpeed = ErosionRate;
+    const sim = new ErosionSimulator(currentHeights, TERRAIN_SEGMENTS + 1);
 
-    const newHeights = sim.simulate(DropCount);
+    // Use the passed argument
+    sim.erodeSpeed = currentErosionRate;
 
-    // Update the geometry's position attribute with the new heights
+    // Use the passed argument
+    const newHeights = sim.simulate(currentDropCount);
+
     const geometry = geometryRef.current.geometry;
     const positions = geometry.attributes.position.array;
 
@@ -105,10 +113,7 @@ export default function ErosionSim({ initialData, onReturn }) {
       positions[i * 3 + 1] = newHeights[i];
     }
 
-    // Tell WebGL to redraw the geometry with the updated vertex positions
     geometry.attributes.position.needsUpdate = true;
-
-    // Recalculate lighting normals based on the new riverbeds
     geometry.computeVertexNormals();
 
     setIsSimulating(false);
@@ -116,26 +121,30 @@ export default function ErosionSim({ initialData, onReturn }) {
 
   // Generate the geometry for the terrain mesh based on the current heights and resolution
   const geometry = useMemo(() => {
-    // Create a PlaneGeometry that matches the terrain size and resolution
-    const segments = resolution - 1;
     const geo = new THREE.PlaneGeometry(
       terrainSize,
       terrainSize,
-      segments,
-      segments,
+      TERRAIN_SEGMENTS,
+      TERRAIN_SEGMENTS,
     );
     geo.rotateX(-Math.PI / 2);
+    return geo;
+  }, [terrainSize]);
 
-    // Update the vertex positions based on the heightmap
+  // Sync heights to the mesh via useEffect whenever the heights prop changes
+  React.useEffect(() => {
+    if (!geometryRef.current) return;
+
+    const geo = geometryRef.current.geometry;
     const positions = geo.attributes.position.array;
+
     for (let i = 0; i < heights.length; i++) {
       positions[i * 3 + 1] = heights[i];
     }
 
-    // Recalculate normals for proper lighting after modifying vertex positions
+    geo.attributes.position.needsUpdate = true;
     geo.computeVertexNormals();
-    return geo;
-  }, [heights, resolution, terrainSize]);
+  }, [heights]);
 
   // Update shader uniforms for biome settings whenever they change
   return (

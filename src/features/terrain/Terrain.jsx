@@ -1,15 +1,10 @@
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useEffect } from "react";
 import * as THREE from "three";
 import { extend, useFrame } from "@react-three/fiber";
 import { useControls, button } from "leva";
 import { vertexShader, fragmentShader } from "../shared/shaders/TerrainShaders";
 import { generateCPUHeightmap } from "../../lib/noise/NoiseUtils";
-
-export const TERRAIN_PALETTES = {
-  Vibrant: { snow: "#FFFFFF", rock: "#8A7D72", tree: "#407239" },
-  Alpine: { snow: "#F2F5F8", rock: "#898c90", tree: "#3a5a49" },
-  Tundra: { snow: "#DDE5ED", rock: "#687686", tree: "#103a27" },
-};
+import { TERRAIN_PALETTES, TERRAIN_SEGMENTS } from "../../lib/constants";
 
 class TerrainMaterial extends THREE.ShaderMaterial {
   constructor() {
@@ -68,12 +63,17 @@ export default function Terrain({ started, onBake }) {
     }
   });
 
-  const segments = 512;
-  const resolution = segments + 1; // 513 vertices per side
-
   // UseMemo prevents the geometry from rebuilding every frame, object is the geometry of the terrain mesh/bounding box
   const geometry = useMemo(
-    () => new THREE.BoxGeometry(100, 1000, 100, segments, 1, segments),
+    () =>
+      new THREE.BoxGeometry(
+        100,
+        1000,
+        100,
+        TERRAIN_SEGMENTS,
+        1,
+        TERRAIN_SEGMENTS,
+      ),
     [],
   );
 
@@ -109,25 +109,29 @@ export default function Terrain({ started, onBake }) {
     };
   }, [Palette]);
 
-  useControls("Pipeline", {
-    "Bake & Erode": button(() => {
-      // 512 segments = 513x513 vertex grid
-      const segments = 512;
-      const terrainSize = 100; // Matches your BoxGeometry width and depth
+  useControls("Pipeline", () => ({
+    "Bake & Erode": button((get) => {
+      // Fetch the absolute latest values directly from the UI store
+      const liveParams = {
+        Seed: get("Terrain Settings.Seed"),
+        Scale: get("Terrain Settings.Scale"),
+        Height: get("Terrain Settings.Height"),
+        Octaves: get("Terrain Settings.Octaves"),
+        Persistence: get("Terrain Settings.Persistence"),
+      };
 
-      const heightmap = generateCPUHeightmap(
-        segments,
-        terrainSize,
-        terrainParams,
-      );
+      const segments = TERRAIN_SEGMENTS;
+      const terrainSize = 100;
+
+      // Pass the liveParams to your CPU generator
+      const heightmap = generateCPUHeightmap(segments, terrainSize, liveParams);
 
       onBake({
         heights: heightmap,
-        resolution: segments + 1,
         terrainSize: terrainSize,
       });
     }),
-  });
+  }));
 
   // Return the mesh with the custom shader material applied, passing in the uniforms for the shader
   return (
