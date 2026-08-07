@@ -1,10 +1,10 @@
-import React, { useMemo, useRef, useEffect } from "react";
+import React, { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { extend, useFrame } from "@react-three/fiber";
 import { useControls, button } from "leva";
 import { vertexShader, fragmentShader } from "../shared/shaders/TerrainShaders";
 import { generateCPUHeightmap } from "../../lib/noise/NoiseUtils";
-import { TERRAIN_PALETTES, TERRAIN_SEGMENTS } from "../../lib/constants";
+import { TERRAIN_PALETTES, TERRAIN_SEGMENTS } from "../../lib/Constants";
 
 class TerrainMaterial extends THREE.ShaderMaterial {
   constructor() {
