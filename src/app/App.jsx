@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import Terrain from "./Terrain";
-import ErosionSim from "./ErosionSim";
-import InterfaceOverlay from "./InterfaceOverlay";
+import Terrain from "../features/terrain/Terrain";
+import ErosionSim from "../features/erosion/ErosionSim";
+import InterfaceOverlay from "../components/InterfaceOverlay";
 import "./App.css";
 
 export default function App() {

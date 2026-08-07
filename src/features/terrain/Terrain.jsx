@@ -2,13 +2,13 @@ import React, { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { extend, useFrame } from "@react-three/fiber";
 import { useControls, button } from "leva";
-import { vertexShader, fragmentShader } from "./Shaders/TerrainShaders";
+import { vertexShader, fragmentShader } from "../shared/shaders/TerrainShaders";
+import { generateCPUHeightmap } from "../../lib/noise/NoiseUtils";
 
-
-const TERRAIN_PALETTES = {
-  "Vibrant": { snow: "#FFFFFF", rock: "#8A7D72", tree: "#407239" },
-  "Alpine": { snow: "#F2F5F8", rock: "#898c90", tree: "#3a5a49" },
-  "Tundra": { snow: "#DDE5ED", rock: "#687686", tree: "#103a27" },
+export const TERRAIN_PALETTES = {
+  Vibrant: { snow: "#FFFFFF", rock: "#8A7D72", tree: "#407239" },
+  Alpine: { snow: "#F2F5F8", rock: "#898c90", tree: "#3a5a49" },
+  Tundra: { snow: "#DDE5ED", rock: "#687686", tree: "#103a27" },
 };
 
 class TerrainMaterial extends THREE.ShaderMaterial {
@@ -51,7 +51,7 @@ export default function Terrain({ started, onBake }) {
   // Instantiate a static vector, holds the base light direction (top-right-front) for the shader
   const baseLightDir = useMemo(
     () => new THREE.Vector3(1.0, 1.0, 0.5).normalize(),
-    []
+    [],
   );
 
   // Pass the camera direction to the shader on every frame to update lighting based on camera orientation
@@ -59,7 +59,7 @@ export default function Terrain({ started, onBake }) {
     if (materialRef.current) {
       // Reset the current light direction to the base light direction
       currentLightDir.copy(baseLightDir);
-      
+
       // Apply camera's rotation to the light direction, so the light appears to come from the same direction relative to the camera
       currentLightDir.applyQuaternion(camera.quaternion);
 
@@ -68,23 +68,23 @@ export default function Terrain({ started, onBake }) {
     }
   });
 
+  const segments = 512;
+  const resolution = segments + 1; // 513 vertices per side
+
   // UseMemo prevents the geometry from rebuilding every frame, object is the geometry of the terrain mesh/bounding box
   const geometry = useMemo(
-    () => new THREE.BoxGeometry(100, 1000, 100, 256, 1, 256), // (width, height, depth, widthSegments, heightSegments, depthSegments)
+    () => new THREE.BoxGeometry(100, 1000, 100, segments, 1, segments),
     [],
   );
 
   // Leva Controls for terrain parameters
-  const { Seed, Scale, Height, Octaves, Persistence } = useControls(
-    "Terrain Settings",
-    {
-      Seed: { value: 629, min: 0, max: 1000, step: 1 },
-      Scale: { value: 34.5, min: 1.0, max: 50.0 },
-      Height: { value: 28.5, min: 1.0, max: 50.0 },
-      Octaves: { value: 7, min: 1, max: 8, step: 1 },
-      Persistence: { value: 0.45, min: 0.1, max: 1.0 },
-    },
-  );
+  const terrainParams = useControls("Terrain Settings", {
+    Seed: { value: 629, min: 0, max: 1000, step: 1 },
+    Scale: { value: 34.5, min: 1.0, max: 50.0 },
+    Height: { value: 28.5, min: 1.0, max: 50.0 },
+    Octaves: { value: 7, min: 1, max: 8, step: 1 },
+    Persistence: { value: 0.45, min: 0.1, max: 1.0 },
+  });
 
   // Leva Controls for biome parameters
   const { Palette, SnowLine, TreeLine, BlendSoftness } = useControls(
@@ -111,15 +111,21 @@ export default function Terrain({ started, onBake }) {
 
   useControls("Pipeline", {
     "Bake & Erode": button(() => {
-      // We need a flat array to hold the heights of the 256x256 grid.
-      // 257 vertices per side (256-segment grid has 257 points)
-      const resolution = 257; 
-      const mockHeightmap = new Float32Array(resolution * resolution);
-      
-      // TODO: Extract the actual shader heights here later
-      
-      // Pass the data up to App.jsx and trigger the mode swap
-      onBake(mockHeightmap);
+      // 512 segments = 513x513 vertex grid
+      const segments = 512;
+      const terrainSize = 100; // Matches your BoxGeometry width and depth
+
+      const heightmap = generateCPUHeightmap(
+        segments,
+        terrainSize,
+        terrainParams,
+      );
+
+      onBake({
+        heights: heightmap,
+        resolution: segments + 1,
+        terrainSize: terrainSize,
+      });
     }),
   });
 
@@ -128,11 +134,11 @@ export default function Terrain({ started, onBake }) {
     <mesh geometry={geometry} position={[0, -500, 0]}>
       <terrainMaterial
         ref={materialRef}
-        uniforms-uSeed-value={Seed}
-        uniforms-uScale-value={Scale}
-        uniforms-uHeight-value={Height}
-        uniforms-uOctaves-value={Octaves}
-        uniforms-uPersistence-value={Persistence}
+        uniforms-uSeed-value={terrainParams.Seed}
+        uniforms-uScale-value={terrainParams.Scale}
+        uniforms-uHeight-value={terrainParams.Height}
+        uniforms-uOctaves-value={terrainParams.Octaves}
+        uniforms-uPersistence-value={terrainParams.Persistence}
         uniforms-uSnowLine-value={SnowLine}
         uniforms-uTreeLine-value={TreeLine}
         uniforms-uBlendSoftness-value={BlendSoftness}
