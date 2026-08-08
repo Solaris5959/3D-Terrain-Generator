@@ -12,7 +12,7 @@ export class ErosionSimulator {
   depositSpeed = 0.3;   // How fast it drops dirt
   evaporateSpeed = 0.01;// How fast water volume decreases
   gravity = 9.8;        // Downhill acceleration
-  maxDropletLifetime = 300; // Max steps before a droplet is forced to die
+  maxDropletLifetime = 30; // Max steps before a droplet is forced to die
 
   simulate(dropletCount) {
     for (let i = 0; i < dropletCount; i++) {
@@ -81,7 +81,7 @@ export class ErosionSimulator {
         }
 
         // Update speed and evaporate
-        speed = Math.sqrt(Math.max(0, speed * speed + deltaHeight * this.gravity));
+        speed = Math.sqrt(Math.max(0, speed * speed - deltaHeight * this.gravity));
         water *= (1 - this.evaporateSpeed);
 
         if (water < 0.01) break; // Droplet is dead

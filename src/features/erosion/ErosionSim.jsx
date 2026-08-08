@@ -77,7 +77,7 @@ export default function ErosionSim({ initialData, onReturn }) {
 
   // Leva controls for erosion parameters
   useControls("Erosion Settings", () => ({
-    DropCount: { value: 100000, min: 1000, max: 10000000, step: 1000 },
+    DropCount: { value: 100000, min: 1000, max: 100000, step: 1000 },
     ErosionRate: { value: 0.1, min: 0.01, max: 1.0 },
     "Run Erosion": button((get) => {
       // get() reaches directly into Leva's internal state store via the folder path
