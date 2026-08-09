@@ -20,6 +20,11 @@ export class ErosionSimulator {
   gravity = 9.8; // Downhill acceleration
   maxDropletLifetime = 200; // Max steps before a droplet is forced to die
 
+  // --- Thermal Erosion Parameters ---
+  thermalIterations = 10; // How many smoothing passes to run
+  talusAngle = 0.8; // Critical angle - slopes steeper than this will slump
+  thermalFraction = 0.5; // How much material moves per iteration (keep under 0.5)
+
   // Pre-calculates the brush weights for every node on the map
   initializeBrush() {
     const radius = this.erosionRadius;
@@ -69,6 +74,7 @@ export class ErosionSimulator {
     }
   }
 
+  // Simulation function, runs the hydraulic erosion simulation, and then the thermal erosion pass
   simulate(dropletCount) {
     for (let i = 0; i < dropletCount; i++) {
       // Spawn Droplets at Random Positions
@@ -157,6 +163,8 @@ export class ErosionSimulator {
       }
     }
 
+    this.applyThermalErosion(); // Apply thermal erosion after hydraulic erosion
+
     // Return the modified array
     return this.map;
   }
@@ -207,7 +215,8 @@ export class ErosionSimulator {
     const brushIndexList = this.brushIndices[nodeIndex];
     const brushWeightList = this.brushWeights[nodeIndex];
 
-    for (let i = 0; i < brushIndexList.length; i++) { // Iterate through all neighbors in the brush
+    for (let i = 0; i < brushIndexList.length; i++) {
+      // Iterate through all neighbors in the brush
       const neighborIndex = brushIndexList[i];
       const weight = brushWeightList[i];
 
@@ -221,11 +230,84 @@ export class ErosionSimulator {
     const brushIndexList = this.brushIndices[nodeIndex];
     const brushWeightList = this.brushWeights[nodeIndex];
 
-    for (let i = 0; i < brushIndexList.length; i++) { // Iterate through all neighbors in the brush
+    for (let i = 0; i < brushIndexList.length; i++) {
+      // Iterate through all neighbors in the brush
       const neighborIndex = brushIndexList[i];
       const weight = brushWeightList[i];
 
       this.map[neighborIndex] -= amount * weight; // Decrease the height of the neighbor based on the weight
+    }
+  }
+
+  // --- Thermal Erosion Function ---
+  applyThermalErosion() {
+    // Setup arrays to check the 8 neighboring vertices (N, S, E, W, NE, NW, SE, SW)
+    const dx = [-1, 1, 0, 0, -1, -1, 1, 1];
+    const dy = [0, 0, -1, 1, -1, 1, -1, 1];
+    // Diagonals are further away, so we divide by sqrt(2) when checking slopes
+    const dist = [1, 1, 1, 1, Math.SQRT2, Math.SQRT2, Math.SQRT2, Math.SQRT2];
+
+    // Use a secondary buffer to store changes to prevent directional smearing artifacts
+    let nextMap = new Float32Array(this.map);
+
+    for (let iter = 0; iter < this.thermalIterations; iter++) {
+      for (let y = 0; y < this.mapSize; y++) {
+        for (let x = 0; x < this.mapSize; x++) {
+          const index = y * this.mapSize + x;
+          const height = this.map[index];
+
+          let maxDiff = 0;
+          let totalDiff = 0;
+          let diffs = new Array(8).fill(0);
+
+          // 1. Check all 8 neighbors to find steep drops
+          for (let n = 0; n < 8; n++) {
+            const nx = x + dx[n];
+            const ny = y + dy[n];
+
+            // Ensure neighbor is within bounds
+            if (nx >= 0 && nx < this.mapSize && ny >= 0 && ny < this.mapSize) {
+              const nIndex = ny * this.mapSize + nx;
+              const nHeight = this.map[nIndex];
+
+              // Calculate slope
+              const diff = (height - nHeight) / dist[n];
+
+              // If the slope is steeper than the talus angle, queue it for slumping
+              if (diff > this.talusAngle) {
+                diffs[n] = diff;
+                totalDiff += diff;
+                if (diff > maxDiff) maxDiff = diff;
+              }
+            }
+          }
+
+          // 2. If there are steep drops, move dirt downhill
+          if (totalDiff > 0) {
+            // Calculate how much total dirt to move (a fraction of the max slope)
+            const amountToMove =
+              (maxDiff - this.talusAngle) * this.thermalFraction;
+            let totalMoved = 0;
+
+            // Distribute the dirt to the lower neighbors proportionally
+            for (let n = 0; n < 8; n++) {
+              if (diffs[n] > 0) {
+                const nx = x + dx[n];
+                const ny = y + dy[n];
+                const nIndex = ny * this.mapSize + nx;
+
+                const move = amountToMove * (diffs[n] / totalDiff);
+                nextMap[nIndex] += move;
+                totalMoved += move;
+              }
+            }
+            // Remove the dirt from the current vertex
+            nextMap[index] -= totalMoved;
+          }
+        }
+      }
+      // Sync the changes back to the main map for the next iteration
+      this.map.set(nextMap);
     }
   }
 }

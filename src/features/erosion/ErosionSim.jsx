@@ -77,14 +77,18 @@ export default function ErosionSim({ initialData, onReturn }) {
 
   // Leva controls for erosion parameters
   useControls("Erosion Settings", () => ({
-    DropCount: { value: 20000, min: 1000, max: 100000, step: 1000 },
+    DropCount: { value: 12000, min: 1000, max: 50000, step: 1000 },
     ErosionRate: { value: 0.1, min: 0.01, max: 1.0 },
+    TalusAngle: { value: 0.8, min: 0.1, max: 3.0, step: 0.1 },
+    ThermalIterations: { value: 10, min: 0, max: 20, step: 1 },
     "Run Erosion": button((get) => {
       // get() reaches directly into Leva's internal state store via the folder path
       const liveDropCount = get("Erosion Settings.DropCount");
       const liveErosionRate = get("Erosion Settings.ErosionRate");
+      const liveTalus = get("Erosion Settings.TalusAngle");
+      const liveThermalIters = get("Erosion Settings.ThermalIterations");
 
-      runSimulation(liveDropCount, liveErosionRate);
+      runSimulation(liveDropCount, liveErosionRate, liveTalus, liveThermalIters);
     }),
     "Return to Generator": button(() => {
       onReturn();
@@ -92,9 +96,8 @@ export default function ErosionSim({ initialData, onReturn }) {
   }));
 
   // Erosion simulation function that modifies the heightmap and updates the mesh geometry
-  const runSimulation = (currentDropCount, currentErosionRate) => {
+  const runSimulation = (currentDropCount, currentErosionRate, talus, thermalInters) => {
     if (!geometryRef.current) return;
-
     setIsSimulating(true);
 
     const currentHeights = new Float32Array(heights);
@@ -102,6 +105,8 @@ export default function ErosionSim({ initialData, onReturn }) {
 
     // Use the passed argument
     sim.erodeSpeed = currentErosionRate;
+    sim.talusAngle = talus;
+    sim.thermalIterations = thermalInters;
 
     // Use the passed argument
     const newHeights = sim.simulate(currentDropCount);
