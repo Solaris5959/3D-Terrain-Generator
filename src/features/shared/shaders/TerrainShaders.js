@@ -71,10 +71,11 @@ export const vertexShader = `
     }
 
     // Fractal Brownian Motion (FBM) Loop, layers noise at different frequencies and amplitudes to create more complex terrain features
-    float fbm(vec2 p) {
+    float fbmSmooth(vec2 p) { // fbmSmooth
         float value = 0.0;
         float amplitude = 1.0;
         float frequency = 1.0;
+        float weight = 1.0;
         
         // Loop through octaves to layer noise at different frequencies and amplitudes
         for (int i = 0; i < uOctaves; i++) {
@@ -84,6 +85,35 @@ export const vertexShader = `
         amplitude *= uPersistence; // Each loop will have less influence on the final noise value (height)
         }
         return value;
+    }
+
+    // Fractal Brownian Motion (FBM) Loop, layers noise at different frequencies and amplitudes to create more complex terrain features
+    float fbm(vec2 p) { // fbmRidged
+        float value = 0.0;
+        float amplitude = 1.0;
+        float frequency = 1.0;
+        float weight = 1.0;
+        float sharpness = 0.001;
+        
+        // Loop through octaves to layer noise at different frequencies and amplitudes
+        for (int i = 0; i < uOctaves; i++) {
+            float n = cnoise(p * frequency + uSeed); // Sample noise function at increasing frequencies
+
+            n = 1.0 - sqrt(n * n + sharpness) - sqrt(sharpness); // Shape the noise as ridges by inverting the absolute value of the sampled value
+
+            n *= n; // Sharpen the ridges
+
+            n *= weight; // Apply weighting from the previous octave to maintain smoothness/sharpness depending on slope
+
+            weight = clamp(n * 2.0, 0.0, 1.0); // Update weight for next octave
+
+            value += amplitude * n; // Accumulate to final noise value
+
+            frequency *= 2.0; // Double the frequency for the next octave, increases the detail of the noise
+            amplitude *= uPersistence; // Each loop will have less influence on the final noise value (height)
+        }
+
+        return value - 1.0; // Decrease height to work with snow and tree lines
     }
 
     // Helper function to get the elevation of the terrain at a given point, using FBM and scaling it by the height multiplier

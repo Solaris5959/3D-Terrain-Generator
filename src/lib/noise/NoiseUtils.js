@@ -88,14 +88,24 @@ function fbm(px, py, octaves, persistence, seed) {
   let value = 0.0;
   let amplitude = 1.0;
   let frequency = 1.0;
+  let weight = 1.0;
 
   for (let i = 0; i < octaves; i++) {
-    // Note: your shader adds uSeed after multiplying by frequency
-    value += amplitude * cnoise(px * frequency + seed, py * frequency + seed);
+    let n = cnoise(px * frequency + seed, py * frequency + seed);
+
+    n = 1.0 - Math.abs(n);
+
+    n *= n;
+
+    n *= weight;
+
+    weight = Math.max(0.0, Math.min(n * 2.0, 1.0) );
+
+    value += amplitude * n;
     frequency *= 2.0;
     amplitude *= persistence;
   }
-  return value;
+  return value - 1.0;
 }
 
 /**
