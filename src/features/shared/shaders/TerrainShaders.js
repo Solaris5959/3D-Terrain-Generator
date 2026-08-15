@@ -93,13 +93,12 @@ export const vertexShader = `
         float amplitude = 1.0;
         float frequency = 1.0;
         float weight = 1.0;
-        float sharpness = 0.001;
         
         // Loop through octaves to layer noise at different frequencies and amplitudes
         for (int i = 0; i < uOctaves; i++) {
             float n = cnoise(p * frequency + uSeed); // Sample noise function at increasing frequencies
 
-            n = 1.0 - sqrt(n * n + sharpness) - sqrt(sharpness); // Shape the noise as ridges by inverting the absolute value of the sampled value
+            n = 1.0 - abs(n); // Shape the noise as ridges by inverting the absolute value of the sampled value\
 
             n *= n; // Sharpen the ridges
 
