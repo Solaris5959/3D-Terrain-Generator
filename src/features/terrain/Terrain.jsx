@@ -1,14 +1,17 @@
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useEffect } from "react";
 import * as THREE from "three";
 import { extend, useFrame } from "@react-three/fiber";
 import { useControls, button } from "leva";
 import { vertexShader, fragmentShader } from "../shared/shaders/TerrainShaders";
 import { generateCPUHeightmap } from "../../lib/noise/NoiseUtils";
-import { TERRAIN_PALETTES, TERRAIN_SEGMENTS } from "../../lib/Constants";
+import { TERRAIN_PALETTES } from "../../lib/Constants";
 
 class TerrainMaterial extends THREE.ShaderMaterial {
   constructor() {
     super({
+      defines: {
+        USE_RIDGED: false,
+      },
       // Define uniforms for the GPU shader
       uniforms: {
         uSeed: { value: 629.0 },
@@ -63,6 +66,42 @@ export default function Terrain({ started, onBake }) {
     }
   });
 
+  // Global Settings Controls
+  const { InsaneMode, Model } = useControls("Settings", {
+    InsaneMode: false,
+    Model: { options: ["Smooth Perlin", "Ridged Perlin"] },
+  });
+
+  const useRidged = Model === "Ridged Perlin";
+
+  // When the model switches, update the shader macro and force a recompile
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.defines.USE_RIDGED = useRidged;
+      materialRef.current.needsUpdate = true;
+    }
+  }, [useRidged]);
+
+  // Terrain Parameters (Rebuilds limits if InsaneMode is toggled)
+  const terrainParams = useControls(
+    "Terrain Settings",
+    {
+      Segments: {
+        value: 512,
+        min: 64,
+        max: InsaneMode ? 4096 : 512,
+        step: 64,
+        disabled: !InsaneMode,
+      },
+      Seed: { value: 629, min: 0, max: 1000, step: 1 },
+      Scale: { value: 34.5, min: 1.0, max: InsaneMode ? 500.0 : 100.0 },
+      Height: { value: 28.5, min: 1.0, max: InsaneMode ? 500.0 : 100.0 },
+      Octaves: { value: 7, min: 1, max: InsaneMode ? 16 : 8, step: 1 },
+      Persistence: { value: 0.45, min: 0.1, max: InsaneMode ? 2.0 : 1.0 },
+    },
+    [InsaneMode], // Dependency array ensures Leva rebuilds max boundaries
+  );
+
   // UseMemo prevents the geometry from rebuilding every frame, object is the geometry of the terrain mesh/bounding box
   const geometry = useMemo(
     () =>
@@ -70,21 +109,12 @@ export default function Terrain({ started, onBake }) {
         100,
         1000,
         100,
-        TERRAIN_SEGMENTS,
+        terrainParams.Segments || 512, // fallback if hidden
         1,
-        TERRAIN_SEGMENTS,
+        terrainParams.Segments || 512,
       ),
-    [],
+    [terrainParams.Segments],
   );
-
-  // Leva Controls for terrain parameters
-  const terrainParams = useControls("Terrain Settings", {
-    Seed: { value: 629, min: 0, max: 1000, step: 1 },
-    Scale: { value: 34.5, min: 1.0, max: 50.0 },
-    Height: { value: 28.5, min: 1.0, max: 200.0 },
-    Octaves: { value: 7, min: 1, max: 8, step: 1 },
-    Persistence: { value: 0.45, min: 0.1, max: 1.0 },
-  });
 
   // Leva Controls for biome parameters
   const { Palette, SnowLine, TreeLine, BlendSoftness } = useControls(
@@ -118,9 +148,10 @@ export default function Terrain({ started, onBake }) {
         Height: get("Terrain Settings.Height"),
         Octaves: get("Terrain Settings.Octaves"),
         Persistence: get("Terrain Settings.Persistence"),
+        Model: get("Settings.Model"),
       };
 
-      const segments = TERRAIN_SEGMENTS;
+      const segments = get("Terrain Settings.Segments") || 512;
       const terrainSize = 100;
 
       // Pass the liveParams to your CPU generator

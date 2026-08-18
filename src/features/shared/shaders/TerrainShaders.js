@@ -79,16 +79,16 @@ export const vertexShader = `
         
         // Loop through octaves to layer noise at different frequencies and amplitudes
         for (int i = 0; i < uOctaves; i++) {
-        value += amplitude * cnoise(p * frequency + uSeed); // Samples noise function at increasing frequencies and decreasing amplitudes, adding more detail to the terrain
+            value += amplitude * cnoise(p * frequency + uSeed); // Samples noise function at increasing frequencies and decreasing amplitudes, adding more detail to the terrain
 
-        frequency *= 2.0; // Double the frequency for the next octave, increases the detail of the noise
-        amplitude *= uPersistence; // Each loop will have less influence on the final noise value (height)
+            frequency *= 2.0; // Double the frequency for the next octave, increases the detail of the noise
+            amplitude *= uPersistence; // Each loop will have less influence on the final noise value (height)
         }
         return value;
     }
 
     // Fractal Brownian Motion (FBM) Loop, layers noise at different frequencies and amplitudes to create more complex terrain features
-    float fbm(vec2 p) { // fbmRidged
+    float fbmRidged(vec2 p) { // fbmRidged
         float value = 0.0;
         float amplitude = 1.0;
         float frequency = 1.0;
@@ -117,7 +117,11 @@ export const vertexShader = `
 
     // Helper function to get the elevation of the terrain at a given point, using FBM and scaling it by the height multiplier
     float getElevation(vec2 p) {
-        return fbm(p * (1.0 / uScale)) * uHeight;
+        #ifdef USE_RIDGED
+            return fbmRidged(p * (1.0 / uScale)) * uHeight;
+        #else
+            return fbmSmooth(p * (1.0 / uScale)) * uHeight;
+        #endif
     }
 
     void main() {
