@@ -1,8 +1,7 @@
-import React, { useMemo, useRef, useState, useEffect } from "react";
+import React, { useMemo, useRef, useEffect } from "react";
 import * as THREE from "three";
 import { extend, useFrame } from "@react-three/fiber";
 import { useControls, button } from "leva";
-import { ErosionSimulator } from "./ErosionAlgorithm";
 import {
   bakedVertexShader,
   fragmentShader,
@@ -30,11 +29,10 @@ class BakedTerrainMaterial extends THREE.ShaderMaterial {
 }
 extend({ BakedTerrainMaterial });
 
-export default function ErosionSim({ initialData, onReturn }) {
+export default function ErosionSim({ initialData, onReturn, setIsLoading, setLoadingText }) {
   const { insaneMode, segments, heights, terrainSize } = initialData;
   const materialRef = useRef();
   const geometryRef = useRef();
-  const [isSimulating, setIsSimulating] = useState(false);
 
   // Lighting direction vectors for the shader
   const currentLightDir = useMemo(() => new THREE.Vector3(), []);
@@ -77,13 +75,16 @@ export default function ErosionSim({ initialData, onReturn }) {
 
   // Leva controls for erosion parameters
   useControls("Erosion Settings", () => ({
-    DropCount: { value: 12000, min: 1000, max: insaneMode ? 500000 : 50000, step: 1000 },
+    InsaneMode: { 
+      value: insaneMode, 
+      disabled: true
+    },
+    DropsK: { label: "Drops (k)", value: 12, min: 1, max: insaneMode ? 500 : 50, step: 1 },
     ErosionRate: { value: 0.1, min: 0.01, max: 1.0 },
     TalusAngle: { value: 0.8, min: 0.1, max: 3.0, step: 0.1 },
     ThermalIterations: { value: 10, min: 0, max: insaneMode ? 500 : 20, step: 1 },
     "Run Erosion": button((get) => {
-      // get() reaches directly into Leva's internal state store via the folder path
-      const liveDropCount = get("Erosion Settings.DropCount");
+      const liveDropCount = get("Erosion Settings.DropCount") * 1000;
       const liveErosionRate = get("Erosion Settings.ErosionRate");
       const liveTalus = get("Erosion Settings.TalusAngle");
       const liveThermalIters = get("Erosion Settings.ThermalIterations");
@@ -93,19 +94,16 @@ export default function ErosionSim({ initialData, onReturn }) {
     "Return to Generator": button(() => {
       onReturn();
     }),
-  }));
+  }), [insaneMode]);
 
   // Create an unmodified BoxGeometry once to use as a structural template
   const baseGeometry = useMemo(() => {
     const geo = new THREE.BoxGeometry(terrainSize, 1000, terrainSize, segments, 1, segments);
-    
-    // Determine which vertices belong to the walls vs top based on original normal
     const count = geo.attributes.position.count;
     const isWallArray = new Float32Array(count);
     const normals = geo.attributes.normal.array;
     
     for (let i = 0; i < count; i++) {
-      // If the normal points up, it's terrain. Otherwise, it's a wall.
       isWallArray[i] = normals[i * 3 + 1] > 0.5 ? 0.0 : 1.0;
     }
     
@@ -113,14 +111,9 @@ export default function ErosionSim({ initialData, onReturn }) {
     return geo;
   }, [terrainSize, segments]);
 
-  // Generate the geometry for the terrain mesh based on the current heights and resolution
-  // The actual mutable geometry clone for the mesh
-  const geometry = useMemo(() => baseGeometry.clone(), [baseGeometry]);
-
-  // Helper function to map heights from the array onto the top face of the BoxGeometry
-  const applyHeightsToMesh = (heightArray) => {
-    const geo = geometryRef.current.geometry;
-    const positions = geo.attributes.position.array;
+  // Helper function: Now accepts the target geometry so we can use it before rendering
+  const applyHeightsToTarget = (targetGeo, heightArray) => {
+    const positions = targetGeo.attributes.position.array;
     const basePositions = baseGeometry.attributes.position.array;
     
     const resolution = segments + 1;
@@ -131,9 +124,7 @@ export default function ErosionSim({ initialData, onReturn }) {
       const y = basePositions[i + 1];
       const z = basePositions[i + 2];
 
-      // Only alter the vertices at the top of the box (original y = 500)
       if (y > 0) {
-        // Map 3D coordinates [-50, 50] back to 2D array index [0, segments]
         const ix = Math.round(((x + halfSize) / terrainSize) * segments);
         const iz = Math.round(((z + halfSize) / terrainSize) * segments);
         
@@ -141,46 +132,69 @@ export default function ErosionSim({ initialData, onReturn }) {
         const safeIz = Math.max(0, Math.min(segments, iz));
         
         const hIndex = safeIx + (safeIz * resolution);
-        
-        // Push the vertex to 500 + terrain height
         positions[i + 1] = 500.0 + heightArray[hIndex];
       }
     }
 
-    geo.attributes.position.needsUpdate = true;
-    geo.computeVertexNormals(); // Generates smooth terrain AND perfect flat side walls
+    targetGeo.attributes.position.needsUpdate = true;
+    targetGeo.computeVertexNormals();
   };
 
-  // Erosion simulation function that modifies the heightmap and updates the mesh geometry
-  const runSimulation = (currentDropCount, currentErosionRate, talus, thermalInters) => {
+  // Generate the geometry WITH heights already applied so it never renders flat
+  const geometry = useMemo(() => {
+    const geo = baseGeometry.clone();
+    applyHeightsToTarget(geo, heights);
+    return geo;
+  }, [baseGeometry, heights]); // Only recreates if the base generator heights change
+
+  // Simulation function that fires up the web worker
+  const runSimulation = (currentDropCount, currentErosionRate, talus, thermalIters) => {
     if (!geometryRef.current) return;
-    setIsSimulating(true);
+    
+    setIsLoading(true);
+    setLoadingText(`Simulating ${currentDropCount.toLocaleString()} raindrops...`);
 
     const currentHeights = new Float32Array(heights);
-    const sim = new ErosionSimulator(currentHeights, segments + 1);
+    const worker = new Worker(new URL('./ErosionWorker.js', import.meta.url), { type: 'module' });
 
-    // Use the passed argument
-    sim.erodeSpeed = currentErosionRate;
-    sim.talusAngle = talus;
-    sim.thermalIterations = thermalInters;
+    worker.onmessage = (e) => {
+      const { newHeights } = e.data;
+      
+      // Map the new heights back to our existing geometry reference for performance
+      applyHeightsToTarget(geometryRef.current.geometry, newHeights);
+      
+      setIsLoading(false);
+      worker.terminate();
+    };
 
-    // Use the passed argument
-    const newHeights = sim.simulate(currentDropCount);
+    worker.onerror = (error) => {
+      console.error("Worker error:", error);
+      setIsLoading(false);
+      worker.terminate();
+    };
 
-    // Map the new heights back to our geometry template
-    applyHeightsToMesh(newHeights);
-
-    setIsSimulating(false);
+    worker.postMessage({
+      heights: currentHeights,
+      segments,
+      dropCount: currentDropCount,
+      erosionRate: currentErosionRate,
+      talus,
+      thermalIters
+    });
   };
 
-  // Sync heights to the mesh via useEffect whenever the heights prop changes
+  // Because the geometry is already perfectly deformed before mounting, 
+  // we just use this effect to dismiss the initial load screen once mounted.
   useEffect(() => {
-    if (geometryRef.current) applyHeightsToMesh(heights);
-  }, [heights, segments, baseGeometry]);
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 50); // Tiny buffer for Three.js to push vertices to the GPU
+
+    return () => clearTimeout(timer);
+  }, [setIsLoading]);
 
   // Update shader uniforms for biome settings whenever they change
   return (
-    // Note: Re-anchored mesh position at Y: -500 to match the original terrain generator exactly
     <mesh geometry={geometry} position={[0, -500, 0]} ref={geometryRef}>
       <bakedTerrainMaterial
         ref={materialRef}

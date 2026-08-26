@@ -3,7 +3,6 @@ import * as THREE from "three";
 import { extend, useFrame } from "@react-three/fiber";
 import { useControls, button } from "leva";
 import { vertexShader, fragmentShader } from "../shared/shaders/TerrainShaders";
-import { generateCPUHeightmap } from "../../lib/noise/NoiseUtils";
 import { TERRAIN_SEGMENTS, TERRAIN_PALETTES } from "../../lib/Constants";
 
 class TerrainMaterial extends THREE.ShaderMaterial {
@@ -39,7 +38,7 @@ class TerrainMaterial extends THREE.ShaderMaterial {
 
 extend({ TerrainMaterial });
 
-export default function Terrain({ started, onBake }) {
+export default function Terrain({ started, onBake, setIsLoading, setLoadingText }) {
   // Reference to the terrainMaterial element
   const materialRef = useRef();
 
@@ -142,7 +141,10 @@ export default function Terrain({ started, onBake }) {
 
   useControls("Pipeline", () => ({
     "Bake & Erode": button((get) => {
-      // Fetch the absolute latest values directly from the UI store
+      // 1. Show loading screen immediately
+      setIsLoading(true);
+      setLoadingText("Baking Terrain Data...");
+
       const liveParams = {
         Seed: get("Terrain Settings.Seed"),
         Scale: get("Terrain Settings.Scale"),
@@ -156,15 +158,31 @@ export default function Terrain({ started, onBake }) {
       const terrainSize = 100;
       const insaneFlag = get("Settings.InsaneMode");
 
-      // Pass the liveParams to your CPU generator
-      const heightMap = generateCPUHeightmap(numSegments, terrainSize, liveParams);
+      // 2. Initialize the Web Worker (type: 'module' handles imports inside the worker)
+      const worker = new Worker(new URL('./HeightmapWorker.js', import.meta.url), { type: 'module' });
 
-      onBake({
-        insaneMode: insaneFlag,
-        segments: numSegments,
-        heights: heightMap,
-        terrainSize: terrainSize,
-      });
+      // 3. Listen for the result
+      worker.onmessage = (e) => {
+        const { heightMap } = e.data;
+        
+        onBake({
+          insaneMode: insaneFlag,
+          segments: numSegments,
+          heights: heightMap,
+          terrainSize: terrainSize,
+        });
+
+        worker.terminate(); // Clean up worker
+      };
+
+      worker.onerror = (error) => {
+        console.error("Worker error:", error);
+        setIsLoading(false);
+        worker.terminate();
+      };
+
+      // 4. Send data to worker to begin
+      worker.postMessage({ numSegments, terrainSize, liveParams });
     }),
   }));
 

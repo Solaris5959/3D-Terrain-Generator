@@ -11,6 +11,10 @@ export default function App() {
   const [appMode, setAppMode] = useState("GENERATE"); // App mode state to control the current mode of the application [Generate, Erode]
   const [terrainData, setTerrainData] = useState(null); // State to hold the terrain data generated from the Terrain component
 
+  // Global loading states for the Web Workers
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState("");
+
   const backgroundColor = "#111111";
 
   // Callback function to handle baking the terrain data from the Terrain component
@@ -21,6 +25,13 @@ export default function App() {
 
   return (
     <div style={{ width: "100vw", height: "100vh", position: "relative" }}>
+      {/* Loading Overlay */}
+      {isLoading && (
+        <div className="loading-overlay">
+          <div className="spinner"></div>
+          <h3>{loadingText}</h3>
+        </div>
+      )}
       {/* Canvas component to render the 3D scene. Sets up camera, lighting, and includes the Terrain component. */}
       <Canvas
         camera={{ position: [0, 40, 80], fov: 60 }}
@@ -37,11 +48,18 @@ export default function App() {
 
         {/* Swap components based on the current mode, keeps GPU data in scope */}
         {appMode === "GENERATE" ? (
-          <Terrain started={started} onBake={handleBakeTerrain} />
+          <Terrain 
+            started={started} 
+            onBake={handleBakeTerrain} 
+            setIsLoading={setIsLoading}
+            setLoadingText={setLoadingText}
+          />
         ) : (
           <ErosionSim 
             initialData={terrainData} 
             onReturn={() => setAppMode("GENERATE")} 
+            setIsLoading={setIsLoading}
+            setLoadingText={setLoadingText}
           />
         )}
 

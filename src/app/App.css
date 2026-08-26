@@ -54,7 +54,7 @@ body {
 
 .popup-modal button {
   padding: 12px 28px;
-  background: #f0f0f0; 
+  background: #D9822B; 
   color: #111;
   border: none;
   border-radius: 4px;
@@ -65,5 +65,41 @@ body {
 }
 
 .popup-modal button:hover {
-  background: #ffffff;
+  background: #E69847;
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.7); /* Match the main overlay */
+  backdrop-filter: blur(15px);    /* Match the strong blur */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  pointer-events: all;
+}
+
+.loading-overlay h3 {
+  color: #eeeeee; /* Match modal light text */
+  font-weight: 300; /* Match modal h1 */
+  letter-spacing: 2px;
+  margin-top: 25px;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #333; /* Match modal subtle border */
+  border-top-color: #D9822B; /* Match modal button hover state */
+  border-radius: 50%;
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
