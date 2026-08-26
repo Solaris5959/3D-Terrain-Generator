@@ -82,9 +82,26 @@ function cnoise(px, py) {
 }
 
 /**
- * JS implementation of the TerrainShader GLSL fbm function
+ * JS implementation of the TerrainShader GLSL fbmSmooth function
  */
-function fbm(px, py, octaves, persistence, seed) {
+function fbmSmooth(px, py, octaves, persistence, seed) {
+  let value = 0.0;
+  let amplitude = 1.0;
+  let frequency = 1.0;
+  let weight = 1.0;
+
+  for (let i = 0; i < octaves; i++) {
+    value += amplitude * cnoise(px * frequency + seed, py * frequency + seed);
+    frequency *= 2.0;
+    amplitude *= persistence;
+  }
+  return value;
+}
+
+/**
+ * JS implementation of the TerrainShader GLSL fbmRidged function
+ */
+function fbmRidged(px, py, octaves, persistence, seed) {
   let value = 0.0;
   let amplitude = 1.0;
   let frequency = 1.0;
@@ -112,10 +129,12 @@ function fbm(px, py, octaves, persistence, seed) {
  * Generates the Float32Array by mapping 2D indexes to 3D world space
  */
 export function generateCPUHeightmap(segments, terrainSize, params) {
-  const { Seed, Scale, Height, Octaves, Persistence } = params;
+  const { Seed, Scale, Height, Octaves, Persistence, Model } = params;
+
+  var fbm = (Model == "Smooth Perlin") ? fbmSmooth : fbmRidged;
   
   const resolution = segments + 1;
-  const heightmap = new Float32Array(resolution * resolution);
+  const heightMap = new Float32Array(resolution * resolution);
   
   // We need the half size to map indices 0 -> 512 to world coordinates -50 -> 50
   const halfSize = terrainSize / 2.0;
@@ -134,9 +153,9 @@ export function generateCPUHeightmap(segments, terrainSize, params) {
       // Calculate flat array index
       const index = xIndex + (zIndex * resolution);
       
-      heightmap[index] = h;
+      heightMap[index] = h;
     }
   }
 
-  return heightmap;
+  return heightMap;
 }

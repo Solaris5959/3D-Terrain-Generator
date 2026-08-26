@@ -4,7 +4,7 @@ import { extend, useFrame } from "@react-three/fiber";
 import { useControls, button } from "leva";
 import { vertexShader, fragmentShader } from "../shared/shaders/TerrainShaders";
 import { generateCPUHeightmap } from "../../lib/noise/NoiseUtils";
-import { TERRAIN_PALETTES } from "../../lib/Constants";
+import { TERRAIN_SEGMENTS, TERRAIN_PALETTES } from "../../lib/Constants";
 
 class TerrainMaterial extends THREE.ShaderMaterial {
   constructor() {
@@ -87,11 +87,12 @@ export default function Terrain({ started, onBake }) {
     "Terrain Settings",
     {
       Segments: {
-        value: 512,
-        min: 64,
-        max: InsaneMode ? 4096 : 512,
-        step: 64,
-        disabled: !InsaneMode,
+        options: Object.fromEntries(
+          Object.entries(TERRAIN_SEGMENTS).filter(
+            ([key, value]) => InsaneMode || value <= 512
+          )
+        ),
+        value: TERRAIN_SEGMENTS['512']
       },
       Seed: { value: 629, min: 0, max: 1000, step: 1 },
       Scale: { value: 34.5, min: 1.0, max: InsaneMode ? 500.0 : 100.0 },
@@ -151,14 +152,17 @@ export default function Terrain({ started, onBake }) {
         Model: get("Settings.Model"),
       };
 
-      const segments = get("Terrain Settings.Segments") || 512;
+      const numSegments = get("Terrain Settings.Segments") || 512;
       const terrainSize = 100;
+      const insaneFlag = get("Settings.InsaneMode");
 
       // Pass the liveParams to your CPU generator
-      const heightmap = generateCPUHeightmap(segments, terrainSize, liveParams);
+      const heightMap = generateCPUHeightmap(numSegments, terrainSize, liveParams);
 
       onBake({
-        heights: heightmap,
+        insaneMode: insaneFlag,
+        segments: numSegments,
+        heights: heightMap,
         terrainSize: terrainSize,
       });
     }),

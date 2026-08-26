@@ -220,6 +220,8 @@ export const fragmentShader = `
 `;
 
 export const bakedVertexShader = `
+    attribute float aIsWall;
+
     varying float vHeight;
     varying vec3 vNormal;
     varying float vIsWall;
@@ -283,13 +285,11 @@ export const bakedVertexShader = `
 
     void main() {
         // Y value is baked in, just pass it to shader
-        vHeight = position.y; 
+        vHeight = position.y - 500.0; 
+        vIsWall = aIsWall;
         
         // Get the normal for lighting, transform it to world space using the model matrix
         vNormal = normalize(mat3(modelMatrix) * normal);
-        
-        // Currently no walls or bounding box, so set vIsWall to 0.0 for terrain
-        vIsWall = 0.0; 
         
         // Keep edge noise for texture blending, but scale it down to avoid extreme values
         vEdgeNoise = cnoise(position.xz * 0.15) * 4.0; 

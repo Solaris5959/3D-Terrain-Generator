@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import * as THREE from "three";
 import { extend, useFrame } from "@react-three/fiber";
 import { useControls, button } from "leva";
@@ -7,7 +7,7 @@ import {
   bakedVertexShader,
   fragmentShader,
 } from "../shared/shaders/TerrainShaders";
-import { TERRAIN_PALETTES, TERRAIN_SEGMENTS } from "../../lib/Constants";
+import { TERRAIN_PALETTES } from "../../lib/Constants";
 
 // Create a new material class for the baked shader
 class BakedTerrainMaterial extends THREE.ShaderMaterial {
@@ -31,7 +31,7 @@ class BakedTerrainMaterial extends THREE.ShaderMaterial {
 extend({ BakedTerrainMaterial });
 
 export default function ErosionSim({ initialData, onReturn }) {
-  const { heights, terrainSize } = initialData;
+  const { insaneMode, segments, heights, terrainSize } = initialData;
   const materialRef = useRef();
   const geometryRef = useRef();
   const [isSimulating, setIsSimulating] = useState(false);
@@ -77,10 +77,10 @@ export default function ErosionSim({ initialData, onReturn }) {
 
   // Leva controls for erosion parameters
   useControls("Erosion Settings", () => ({
-    DropCount: { value: 12000, min: 1000, max: 50000, step: 1000 },
+    DropCount: { value: 12000, min: 1000, max: insaneMode ? 500000 : 50000, step: 1000 },
     ErosionRate: { value: 0.1, min: 0.01, max: 1.0 },
     TalusAngle: { value: 0.8, min: 0.1, max: 3.0, step: 0.1 },
-    ThermalIterations: { value: 10, min: 0, max: 20, step: 1 },
+    ThermalIterations: { value: 10, min: 0, max: insaneMode ? 500 : 20, step: 1 },
     "Run Erosion": button((get) => {
       // get() reaches directly into Leva's internal state store via the folder path
       const liveDropCount = get("Erosion Settings.DropCount");
@@ -95,13 +95,69 @@ export default function ErosionSim({ initialData, onReturn }) {
     }),
   }));
 
+  // Create an unmodified BoxGeometry once to use as a structural template
+  const baseGeometry = useMemo(() => {
+    const geo = new THREE.BoxGeometry(terrainSize, 1000, terrainSize, segments, 1, segments);
+    
+    // Determine which vertices belong to the walls vs top based on original normal
+    const count = geo.attributes.position.count;
+    const isWallArray = new Float32Array(count);
+    const normals = geo.attributes.normal.array;
+    
+    for (let i = 0; i < count; i++) {
+      // If the normal points up, it's terrain. Otherwise, it's a wall.
+      isWallArray[i] = normals[i * 3 + 1] > 0.5 ? 0.0 : 1.0;
+    }
+    
+    geo.setAttribute('aIsWall', new THREE.BufferAttribute(isWallArray, 1));
+    return geo;
+  }, [terrainSize, segments]);
+
+  // Generate the geometry for the terrain mesh based on the current heights and resolution
+  // The actual mutable geometry clone for the mesh
+  const geometry = useMemo(() => baseGeometry.clone(), [baseGeometry]);
+
+  // Helper function to map heights from the array onto the top face of the BoxGeometry
+  const applyHeightsToMesh = (heightArray) => {
+    const geo = geometryRef.current.geometry;
+    const positions = geo.attributes.position.array;
+    const basePositions = baseGeometry.attributes.position.array;
+    
+    const resolution = segments + 1;
+    const halfSize = terrainSize / 2.0;
+
+    for (let i = 0; i < basePositions.length; i += 3) {
+      const x = basePositions[i];
+      const y = basePositions[i + 1];
+      const z = basePositions[i + 2];
+
+      // Only alter the vertices at the top of the box (original y = 500)
+      if (y > 0) {
+        // Map 3D coordinates [-50, 50] back to 2D array index [0, segments]
+        const ix = Math.round(((x + halfSize) / terrainSize) * segments);
+        const iz = Math.round(((z + halfSize) / terrainSize) * segments);
+        
+        const safeIx = Math.max(0, Math.min(segments, ix));
+        const safeIz = Math.max(0, Math.min(segments, iz));
+        
+        const hIndex = safeIx + (safeIz * resolution);
+        
+        // Push the vertex to 500 + terrain height
+        positions[i + 1] = 500.0 + heightArray[hIndex];
+      }
+    }
+
+    geo.attributes.position.needsUpdate = true;
+    geo.computeVertexNormals(); // Generates smooth terrain AND perfect flat side walls
+  };
+
   // Erosion simulation function that modifies the heightmap and updates the mesh geometry
   const runSimulation = (currentDropCount, currentErosionRate, talus, thermalInters) => {
     if (!geometryRef.current) return;
     setIsSimulating(true);
 
     const currentHeights = new Float32Array(heights);
-    const sim = new ErosionSimulator(currentHeights, TERRAIN_SEGMENTS + 1);
+    const sim = new ErosionSimulator(currentHeights, segments + 1);
 
     // Use the passed argument
     sim.erodeSpeed = currentErosionRate;
@@ -111,49 +167,21 @@ export default function ErosionSim({ initialData, onReturn }) {
     // Use the passed argument
     const newHeights = sim.simulate(currentDropCount);
 
-    const geometry = geometryRef.current.geometry;
-    const positions = geometry.attributes.position.array;
-
-    for (let i = 0; i < newHeights.length; i++) {
-      positions[i * 3 + 1] = newHeights[i];
-    }
-
-    geometry.attributes.position.needsUpdate = true;
-    geometry.computeVertexNormals();
+    // Map the new heights back to our geometry template
+    applyHeightsToMesh(newHeights);
 
     setIsSimulating(false);
   };
 
-  // Generate the geometry for the terrain mesh based on the current heights and resolution
-  const geometry = useMemo(() => {
-    const geo = new THREE.PlaneGeometry(
-      terrainSize,
-      terrainSize,
-      TERRAIN_SEGMENTS,
-      TERRAIN_SEGMENTS,
-    );
-    geo.rotateX(-Math.PI / 2);
-    return geo;
-  }, [terrainSize]);
-
   // Sync heights to the mesh via useEffect whenever the heights prop changes
-  React.useEffect(() => {
-    if (!geometryRef.current) return;
-
-    const geo = geometryRef.current.geometry;
-    const positions = geo.attributes.position.array;
-
-    for (let i = 0; i < heights.length; i++) {
-      positions[i * 3 + 1] = heights[i];
-    }
-
-    geo.attributes.position.needsUpdate = true;
-    geo.computeVertexNormals();
-  }, [heights]);
+  useEffect(() => {
+    if (geometryRef.current) applyHeightsToMesh(heights);
+  }, [heights, segments, baseGeometry]);
 
   // Update shader uniforms for biome settings whenever they change
   return (
-    <mesh geometry={geometry} position={[0, 0, 0]} ref={geometryRef}>
+    // Note: Re-anchored mesh position at Y: -500 to match the original terrain generator exactly
+    <mesh geometry={geometry} position={[0, -500, 0]} ref={geometryRef}>
       <bakedTerrainMaterial
         ref={materialRef}
         uniforms-uSnowLine-value={SnowLine}
