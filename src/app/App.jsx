@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import Terrain from "../features/terrain/Terrain";
@@ -47,21 +47,23 @@ export default function App() {
         <color attach="background" args={[backgroundColor]} />
 
         {/* Swap components based on the current mode, keeps GPU data in scope */}
-        {appMode === "GENERATE" ? (
-          <Terrain 
-            started={started} 
-            onBake={handleBakeTerrain} 
-            setIsLoading={setIsLoading}
-            setLoadingText={setLoadingText}
-          />
-        ) : (
-          <ErosionSim 
-            initialData={terrainData} 
-            onReturn={() => setAppMode("GENERATE")} 
-            setIsLoading={setIsLoading}
-            setLoadingText={setLoadingText}
-          />
-        )}
+        <Suspense fallback={null}>
+          {appMode === "GENERATE" ? (
+            <Terrain
+              started={started}
+              onBake={handleBakeTerrain}
+              setIsLoading={setIsLoading}
+              setLoadingText={setLoadingText}
+            />
+          ) : (
+            <ErosionSim
+              initialData={terrainData}
+              onReturn={() => setAppMode("GENERATE")}
+              setIsLoading={setIsLoading}
+              setLoadingText={setLoadingText}
+            />
+          )}
+        </Suspense>
 
         {/* Camera controls for rotating, zooming, and panning */}
         <OrbitControls

@@ -1,6 +1,6 @@
-import React, { useMemo, useRef, useEffect } from "react";
+import React, { useMemo, useRef, useEffect, Suspense } from "react";
 import * as THREE from "three";
-import { extend, useFrame } from "@react-three/fiber";
+import { extend, useFrame, useLoader } from "@react-three/fiber";
 import { useControls, button } from "leva";
 import {
   bakedVertexShader,
@@ -16,9 +16,10 @@ class BakedTerrainMaterial extends THREE.ShaderMaterial {
         uSnowLine: { value: 20.0 },
         uTreeLine: { value: 5.0 },
         uBlendSoftness: { value: 2.0 },
-        uSnowColor: { value: new THREE.Color("#FFFFFF") },
-        uRockColor: { value: new THREE.Color("#8A7D72") },
-        uTreeColor: { value: new THREE.Color("#407239") },
+        uSnow: { value: null },
+        uRock: { value: null },
+        uGrass: { value: null },
+        uTextureScale: { value: 10.0 },
         uLightDir: { value: new THREE.Vector3(1.0, 1.0, 0.5) },
       },
       vertexShader: bakedVertexShader,
@@ -29,8 +30,29 @@ class BakedTerrainMaterial extends THREE.ShaderMaterial {
 }
 extend({ BakedTerrainMaterial });
 
-export default function ErosionSim({ initialData, onReturn, setIsLoading, setLoadingText }) {
+export default function ErosionSim({
+  initialData,
+  onReturn,
+  setIsLoading,
+  setLoadingText,
+}) {
   const { insaneMode, segments, heights, terrainSize } = initialData;
+
+  const basePath = import.meta.env.BASE_URL;
+
+  const [grassTex, snowTex, rockTex] = useLoader(THREE.TextureLoader, [
+    `${basePath}2kGrassPacked.png`, // Ensure paths match your public folder structure
+    `${basePath}2kSnowPacked.png`,
+    `${basePath}2kRockPacked.png`,
+  ]);
+
+  useMemo(() => {
+    [grassTex, snowTex, rockTex].forEach((tex) => {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.colorSpace = THREE.SRGBColorSpace;
+    });
+  }, [grassTex, snowTex, rockTex]);
+
   const materialRef = useRef();
   const geometryRef = useRef();
 
@@ -74,40 +96,67 @@ export default function ErosionSim({ initialData, onReturn, setIsLoading, setLoa
   }, [Palette]);
 
   // Leva controls for erosion parameters
-  useControls("Erosion Settings", () => ({
-    InsaneMode: { 
-      value: insaneMode, 
-      disabled: true
-    },
-    DropsK: { label: "Drops (k)", value: 12, min: 1, max: insaneMode ? 500 : 50, step: 1 },
-    ErosionRate: { value: 0.1, min: 0.01, max: 1.0 },
-    TalusAngle: { value: 0.8, min: 0.1, max: 3.0, step: 0.1 },
-    ThermalIterations: { value: 10, min: 0, max: insaneMode ? 500 : 20, step: 1 },
-    "Run Erosion": button((get) => {
-      const liveDropCount = get("Erosion Settings.DropCount") * 1000;
-      const liveErosionRate = get("Erosion Settings.ErosionRate");
-      const liveTalus = get("Erosion Settings.TalusAngle");
-      const liveThermalIters = get("Erosion Settings.ThermalIterations");
+  useControls(
+    "Erosion Settings",
+    () => ({
+      InsaneMode: {
+        value: insaneMode,
+        disabled: true,
+      },
+      DropsK: {
+        label: "Drops (k)",
+        value: 12,
+        min: 1,
+        max: insaneMode ? 500 : 50,
+        step: 1,
+      },
+      ErosionRate: { value: 0.1, min: 0.01, max: 1.0 },
+      TalusAngle: { value: 0.8, min: 0.1, max: 3.0, step: 0.1 },
+      ThermalIterations: {
+        value: 10,
+        min: 0,
+        max: insaneMode ? 500 : 20,
+        step: 1,
+      },
+      "Run Erosion": button((get) => {
+        const liveDropCount = get("Erosion Settings.DropsK") * 1000;
+        const liveErosionRate = get("Erosion Settings.ErosionRate");
+        const liveTalus = get("Erosion Settings.TalusAngle");
+        const liveThermalIters = get("Erosion Settings.ThermalIterations");
 
-      runSimulation(liveDropCount, liveErosionRate, liveTalus, liveThermalIters);
+        runSimulation(
+          liveDropCount,
+          liveErosionRate,
+          liveTalus,
+          liveThermalIters,
+        );
+      }),
+      "Return to Generator": button(() => {
+        onReturn();
+      }),
     }),
-    "Return to Generator": button(() => {
-      onReturn();
-    }),
-  }), [insaneMode]);
+    [insaneMode],
+  );
 
   // Create an unmodified BoxGeometry once to use as a structural template
   const baseGeometry = useMemo(() => {
-    const geo = new THREE.BoxGeometry(terrainSize, 1000, terrainSize, segments, 1, segments);
+    const geo = new THREE.BoxGeometry(
+      terrainSize,
+      1000,
+      terrainSize,
+      segments,
+      1,
+      segments,
+    );
     const count = geo.attributes.position.count;
     const isWallArray = new Float32Array(count);
     const normals = geo.attributes.normal.array;
-    
+
     for (let i = 0; i < count; i++) {
       isWallArray[i] = normals[i * 3 + 1] > 0.5 ? 0.0 : 1.0;
     }
-    
-    geo.setAttribute('aIsWall', new THREE.BufferAttribute(isWallArray, 1));
+
+    geo.setAttribute("aIsWall", new THREE.BufferAttribute(isWallArray, 1));
     return geo;
   }, [terrainSize, segments]);
 
@@ -115,7 +164,7 @@ export default function ErosionSim({ initialData, onReturn, setIsLoading, setLoa
   const applyHeightsToTarget = (targetGeo, heightArray) => {
     const positions = targetGeo.attributes.position.array;
     const basePositions = baseGeometry.attributes.position.array;
-    
+
     const resolution = segments + 1;
     const halfSize = terrainSize / 2.0;
 
@@ -127,11 +176,11 @@ export default function ErosionSim({ initialData, onReturn, setIsLoading, setLoa
       if (y > 0) {
         const ix = Math.round(((x + halfSize) / terrainSize) * segments);
         const iz = Math.round(((z + halfSize) / terrainSize) * segments);
-        
+
         const safeIx = Math.max(0, Math.min(segments, ix));
         const safeIz = Math.max(0, Math.min(segments, iz));
-        
-        const hIndex = safeIx + (safeIz * resolution);
+
+        const hIndex = safeIx + safeIz * resolution;
         positions[i + 1] = 500.0 + heightArray[hIndex];
       }
     }
@@ -148,21 +197,30 @@ export default function ErosionSim({ initialData, onReturn, setIsLoading, setLoa
   }, [baseGeometry, heights]); // Only recreates if the base generator heights change
 
   // Simulation function that fires up the web worker
-  const runSimulation = (currentDropCount, currentErosionRate, talus, thermalIters) => {
+  const runSimulation = (
+    currentDropCount,
+    currentErosionRate,
+    talus,
+    thermalIters,
+  ) => {
     if (!geometryRef.current) return;
-    
+
     setIsLoading(true);
-    setLoadingText(`Simulating ${currentDropCount.toLocaleString()} raindrops...`);
+    setLoadingText(
+      `Simulating ${currentDropCount.toLocaleString()} raindrops...`,
+    );
 
     const currentHeights = new Float32Array(heights);
-    const worker = new Worker(new URL('./ErosionWorker.js', import.meta.url), { type: 'module' });
+    const worker = new Worker(new URL("./ErosionWorker.js", import.meta.url), {
+      type: "module",
+    });
 
     worker.onmessage = (e) => {
       const { newHeights } = e.data;
-      
+
       // Map the new heights back to our existing geometry reference for performance
       applyHeightsToTarget(geometryRef.current.geometry, newHeights);
-      
+
       setIsLoading(false);
       worker.terminate();
     };
@@ -179,11 +237,11 @@ export default function ErosionSim({ initialData, onReturn, setIsLoading, setLoa
       dropCount: currentDropCount,
       erosionRate: currentErosionRate,
       talus,
-      thermalIters
+      thermalIters,
     });
   };
 
-  // Because the geometry is already perfectly deformed before mounting, 
+  // Because the geometry is already perfectly deformed before mounting,
   // we just use this effect to dismiss the initial load screen once mounted.
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -201,9 +259,10 @@ export default function ErosionSim({ initialData, onReturn, setIsLoading, setLoa
         uniforms-uSnowLine-value={SnowLine}
         uniforms-uTreeLine-value={TreeLine}
         uniforms-uBlendSoftness-value={BlendSoftness}
-        uniforms-uSnowColor-value={biomeColors.snow}
-        uniforms-uRockColor-value={biomeColors.rock}
-        uniforms-uTreeColor-value={biomeColors.tree}
+        uniforms-uGrass-value={grassTex}
+        uniforms-uRock-value={rockTex}
+        uniforms-uSnow-value={snowTex}
+        uniforms-uTextureScale-value={10.0}
       />
     </mesh>
   );

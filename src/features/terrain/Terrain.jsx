@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useEffect } from "react";
 import * as THREE from "three";
-import { extend, useFrame } from "@react-three/fiber";
+import { extend, useFrame, useLoader } from "@react-three/fiber";
 import { useControls, button } from "leva";
 import { vertexShader, fragmentShader } from "../shared/shaders/TerrainShaders";
 import { TERRAIN_SEGMENTS, TERRAIN_PALETTES } from "../../lib/Constants";
@@ -23,9 +23,10 @@ class TerrainMaterial extends THREE.ShaderMaterial {
         uTreeLine: { value: 5.0 },
         uBlendSoftness: { value: 2.0 },
         // Color uniforms initialized with default palette
-        uSnowColor: { value: new THREE.Color("#FFFFFF") },
-        uRockColor: { value: new THREE.Color("#8A7D72") },
-        uTreeColor: { value: new THREE.Color("#407239") },
+        uSnow: { value: null },
+        uRock: { value: null },
+        uGrass: { value: null },
+        uTextureScale: { value: 1.0 },
         // Light direction uniform for lighting calculations in the shader
         uLightDir: { value: new THREE.Vector3(1.0, 1.0, 0.5) },
       },
@@ -39,6 +40,21 @@ class TerrainMaterial extends THREE.ShaderMaterial {
 extend({ TerrainMaterial });
 
 export default function Terrain({ started, onBake, setIsLoading, setLoadingText }) {
+  const basePath = import.meta.env.BASE_URL;
+
+  const [grassTex, snowTex, rockTex] = useLoader(THREE.TextureLoader, [
+    `${basePath}2kGrassPacked.png`, // Ensure paths match your public folder structure
+    `${basePath}2kSnowPacked.png`,
+    `${basePath}2kRockPacked.png`
+  ]);
+
+  useMemo(() => {
+    [grassTex, snowTex, rockTex].forEach(tex => {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.colorSpace = THREE.SRGBColorSpace;
+    });
+  }, [grassTex, snowTex, rockTex]);
+
   // Reference to the terrainMaterial element
   const materialRef = useRef();
 
@@ -199,9 +215,10 @@ export default function Terrain({ started, onBake, setIsLoading, setLoadingText 
         uniforms-uSnowLine-value={SnowLine}
         uniforms-uTreeLine-value={TreeLine}
         uniforms-uBlendSoftness-value={BlendSoftness}
-        uniforms-uSnowColor-value={biomeColors.snow}
-        uniforms-uRockColor-value={biomeColors.rock}
-        uniforms-uTreeColor-value={biomeColors.tree}
+        uniforms-uGrass-value={grassTex}
+        uniforms-uRock-value={rockTex}
+        uniforms-uSnow-value={snowTex}
+        uniforms-uTextureScale-value={10.0}
       />
     </mesh>
   );

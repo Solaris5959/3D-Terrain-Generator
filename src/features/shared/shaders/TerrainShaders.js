@@ -9,6 +9,7 @@ export const vertexShader = `
     varying vec3 vNormal;
     varying float vIsWall;
     varying float vEdgeNoise;
+    varying vec2 vPosXZ;
 
     // --- Perlin Noise Functions ---
 
@@ -126,6 +127,7 @@ export const vertexShader = `
 
     void main() {
         vec3 newPosition = position; // Start with the original vertex position, will be modified for terrain height
+        vPosXZ = position.xz; // Pass local coordinates for texture tiling
         
         // Check if current vertex is part of the terrain (top face), or the bounding box
         bool isTopFace = normal.y > 0.5;
@@ -173,6 +175,7 @@ export const fragmentShader = `
     varying vec3 vNormal;
     varying float vIsWall;
     varying float vEdgeNoise;
+    varying vec2 vPosXZ;
 
     uniform vec3 uLightDir;
 
@@ -180,10 +183,11 @@ export const fragmentShader = `
     uniform float uTreeLine;
     uniform float uBlendSoftness;
 
-    // Dynamic Biome Colors
-    uniform vec3 uSnowColor;
-    uniform vec3 uRockColor;
-    uniform vec3 uTreeColor;
+    // Dynamic Terrain Textures
+    uniform sampler2D uGrass;
+    uniform sampler2D uRock;
+    uniform sampler2D uSnow;
+    uniform float uTextureScale;
 
     float ambientLightIntensity = 0.30; // Ambient Light Intensity, affects shadows
     float diffuseLightIntensity = 1.5; // Diffuse Light Intensity, affects highlights
@@ -195,27 +199,44 @@ export const fragmentShader = `
         // Calculate final lighting amount by ambient + diffuse, adjust globals to control the overall brightness and contrast of the terrain
         float lighting = ambientLightIntensity + (diffuse * diffuseLightIntensity);
         
-        vec3 color;
+        vec3 finalColor;
         vec3 boxColor = vec3(0.15, 0.15, 0.15); // Dark chunk border
         
         // Apply lighting to the segments of the terrain
         if (vIsWall > 0.5) {
-            color = boxColor; // The walls and bottom
+            finalColor = boxColor; // The walls and bottom
         } else {
-            // Modulate the pure altitude with our noise value
+            // Calculate UVs based on world position and scale
+            vec2 uv = vPosXZ / uTextureScale;
+
+            // Sample the packed textures
+            vec4 grassPacked = texture2D(uGrass, uv);
+            vec4 rockPacked  = texture2D(uRock, uv);
+            vec4 snowPacked  = texture2D(uSnow, uv);
+
+            // Extract the RGB color (Albedo)
+            vec3 grassColor = grassPacked.rgb;
+            vec3 rockColor  = rockPacked.rgb;
+            vec3 snowColor  = snowPacked.rgb;
+
+            // Extract Roughness (Alpha) - ready for PBR lighting later
+            float grassRough = grassPacked.a;
+            float rockRough  = rockPacked.a;
+            float snowRough  = snowPacked.a;
+
             float noisyHeight = vHeight + vEdgeNoise;
             
-            // Calculate smooth transitions [0-1], for the tree line and snow line based on the noisy height, using smoothstep for a gradual blend
+            // Your existing Leva-controlled blend logic
             float treeFactor = smoothstep(uTreeLine - uBlendSoftness, uTreeLine + uBlendSoftness, noisyHeight);
             float snowFactor = smoothstep(uSnowLine - uBlendSoftness, uSnowLine + uBlendSoftness, noisyHeight);
             
-            // Layer the dynamic colors from bottom to top
-            color = uTreeColor; // Base layer (valleys)
-            color = mix(color, uRockColor, treeFactor); // Blend into rock
-            color = mix(color, uSnowColor, snowFactor); // Blend into snow caps
+            // Blend textures based on height
+            finalColor = grassColor; 
+            finalColor = mix(finalColor, rockColor, treeFactor); 
+            finalColor = mix(finalColor, snowColor, snowFactor);
         }
         
-        gl_FragColor = vec4(color * lighting, 1.0);
+        gl_FragColor = vec4(finalColor * lighting, 1.0);
     }
 `;
 
@@ -226,6 +247,7 @@ export const bakedVertexShader = `
     varying vec3 vNormal;
     varying float vIsWall;
     varying float vEdgeNoise;
+    varying vec2 vPosXZ;
 
     // We only need cnoise here for the texture edge blending, copied from the vertex shader above
     vec4 permute(vec4 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
@@ -287,6 +309,7 @@ export const bakedVertexShader = `
         // Y value is baked in, just pass it to shader
         vHeight = position.y - 500.0; 
         vIsWall = aIsWall;
+        vPosXZ = position.xz; // Pass local coordinates for texture tiling
         
         // Get the normal for lighting, transform it to world space using the model matrix
         vNormal = normalize(mat3(modelMatrix) * normal);
