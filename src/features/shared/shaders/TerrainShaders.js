@@ -186,6 +186,10 @@ export const fragmentShader = `
     uniform float uTreeLine;
     uniform float uBlendSoftness;
 
+    uniform float uGrassSlope;
+    uniform float uSnowSlope;
+    uniform float uSlopeSoftness;
+
     // Albedo / Roughness Maps
     uniform sampler2D uGrass;
     uniform sampler2D uRock;
@@ -295,15 +299,12 @@ export const fragmentShader = `
             float snowAltitude = smoothstep(uSnowLine - uBlendSoftness, uSnowLine + uBlendSoftness, noisyHeight);
 
             // Slope rules (0.8 is roughly a gentle hill, 0.5 is a steep cliff)
-            // Grass only grows on relatively flat ground. Fades out completely on cliffs.
-            float grassSlope = smoothstep(0.70, 0.85, flatness);
-            
-            // Snow can cling to slightly steeper rock than grass, but still falls off sheer cliffs.
-            float snowSlope = smoothstep(0.55, 0.75, flatness);
+            float grassSlopeWeight = smoothstep(uGrassSlope, uGrassSlope + uSlopeSoftness, flatness);
+            float snowSlopeWeight = smoothstep(uSnowSlope, uSnowSlope + uSlopeSoftness, flatness);
 
             // Combine altitude and slope for final weights
-            float grassWeight = grassAltitude * grassSlope;
-            float snowWeight = snowAltitude * snowSlope;
+            float grassWeight = grassAltitude * grassSlopeWeight;
+            float snowWeight = snowAltitude * snowSlopeWeight;
             
             // Blend Textures Color and Roughness
             finalColor = rockColor; 

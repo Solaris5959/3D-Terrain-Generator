@@ -13,20 +13,23 @@ class TerrainMaterial extends THREE.ShaderMaterial {
       },
       // Define uniforms for the GPU shader
       uniforms: {
-        uSeed: { value: 629.0 },
+        uSeed: { value: 69.0 },
         uScale: { value: 100.0 },
         uHeight: { value: 20.0 },
-        uOctaves: { value: 8 },
+        uOctaves: { value: 9 },
         uPersistence: { value: 0.47 },
         // Biome uniforms
-        uSnowLine: { value: 4.6 },
-        uTreeLine: { value: -11.8 },
+        uSnowLine: { value: 1.2 },
+        uTreeLine: { value: -7.0 },
         uBlendSoftness: { value: 8.0 },
         // Color uniforms initialized with default palette
         uSnow: { value: null },
         uRock: { value: null },
         uGrass: { value: null },
         uTextureScale: { value: 10.0 },
+        uGrassSlope: { value: 0.70 },
+        uSnowSlope: { value: 0.65 },
+        uSlopeSoftness: { value: 0.15 },
         // Normals for textures
         uGrassNormal: { value: null },
         uRockNormal: { value: null },
@@ -121,10 +124,10 @@ export default function Terrain({ started, onBake, setIsLoading, setLoadingText 
         ),
         value: TERRAIN_SEGMENTS['512']
       },
-      Seed: { value: 629, min: 0, max: 1000, step: 1 },
+      Seed: { value: 69, min: 0, max: 1000, step: 1 },
       Scale: { value: 100.0, min: 1.0, max: InsaneMode ? 500.0 : 100.0 },
       Height: { value: 20.0, min: 1.0, max: InsaneMode ? 500.0 : 100.0 },
-      Octaves: { value: 8, min: 1, max: InsaneMode ? 16 : 8, step: 1 },
+      Octaves: { value: 9, min: 1, max: InsaneMode ? 20 : 10, step: 1 },
       Persistence: { value: 0.47, min: 0.1, max: InsaneMode ? 2.0 : 1.0 },
     },
     [InsaneMode], // Dependency array ensures Leva rebuilds max boundaries
@@ -145,16 +148,19 @@ export default function Terrain({ started, onBake, setIsLoading, setLoadingText 
   );
 
   // Leva Controls for biome parameters
-  const { Palette, SnowLine, TreeLine, BlendSoftness, TextureScale } = useControls(
+  const { Palette, SnowLine, TreeLine, BlendSoftness, GrassSlope, SnowSlope, SlopeSoftness, TextureScale } = useControls(
     "Biome Settings",
     {
       Palette: {
         options: TERRAIN_PALETTES,
         value: TERRAIN_PALETTES["Vibrant"],
       },
-      SnowLine: { value: 4.8, min: -20.0, max: 40.0 },
-      TreeLine: { value: -11.8, min: -40.0, max: 40.0 },
+      SnowLine: { value: 1.2, min: -20.0, max: 40.0 },
+      TreeLine: { value: -7.0, min: -40.0, max: 40.0 },
       BlendSoftness: { value: 8.0, min: 0.1, max: 10.0 },
+      GrassSlope: { value: 0.70, min: 0.0, max: 1.0, step: 0.01 },
+      SnowSlope: { value: 0.65, min: 0.0, max: 1.0, step: 0.01 },
+      SlopeSoftness: { value: 0.15, min: 0.01, max: 0.5, step: 0.01 },
       TextureScale: { value: 10.0, min: 1.0, max: 50.0 },
     },
   );
@@ -235,6 +241,9 @@ export default function Terrain({ started, onBake, setIsLoading, setLoadingText 
         uniforms-uGrassNormal-value={grassNorm}
         uniforms-uRockNormal-value={rockNorm}
         uniforms-uSnowNormal-value={snowNorm}
+        uniforms-uGrassSlope-value={GrassSlope}
+        uniforms-uSnowSlope-value={SnowSlope}
+        uniforms-uSlopeSoftness-value={SlopeSoftness}
       />
     </mesh>
   );

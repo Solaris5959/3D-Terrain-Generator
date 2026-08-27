@@ -22,6 +22,9 @@ class BakedTerrainMaterial extends THREE.ShaderMaterial {
         uRock: { value: null },
         uGrass: { value: null },
         uTextureScale: { value: 10.0 },
+        uGrassSlope: { value: 0.70 },
+        uSnowSlope: { value: 0.55 },
+        uSlopeSoftness: { value: 0.15 },
         // Normals for textures
         uGrassNormal: { value: null },
         uRockNormal: { value: null },
@@ -88,16 +91,19 @@ export default function ErosionSim({
   });
 
   // Duplicate of Biome settings Leva control panel from Terrain component
-  const { Palette, SnowLine, TreeLine, BlendSoftness, TextureScale } = useControls(
+  const { Palette, SnowLine, TreeLine, BlendSoftness, GrassSlope, SnowSlope, SlopeSoftness, TextureScale } = useControls(
     "Biome Settings",
     {
       Palette: {
         options: TERRAIN_PALETTES,
         value: TERRAIN_PALETTES["Vibrant"],
       },
-      SnowLine: { value: 10.0, min: -20.0, max: 40.0 },
-      TreeLine: { value: -11.0, min: -40.0, max: 40.0 },
+      SnowLine: { value: 1.2, min: -20.0, max: 40.0 },
+      TreeLine: { value: -11.8, min: -40.0, max: 40.0 },
       BlendSoftness: { value: 8.0, min: 0.1, max: 10.0 },
+      GrassSlope: { value: 0.70, min: 0.0, max: 1.0, step: 0.01 },
+      SnowSlope: { value: 0.65, min: 0.0, max: 1.0, step: 0.01 },
+      SlopeSoftness: { value: 0.15, min: 0.01, max: 0.5, step: 0.01 },
       TextureScale: { value: 10.0, min: 1.0, max: 50.0 },
     },
   );
@@ -282,6 +288,9 @@ export default function ErosionSim({
         uniforms-uGrassNormal-value={grassNorm}
         uniforms-uRockNormal-value={rockNorm}
         uniforms-uSnowNormal-value={snowNorm}
+        uniforms-uGrassSlope-value={GrassSlope}
+        uniforms-uSnowSlope-value={SnowSlope}
+        uniforms-uSlopeSoftness-value={SlopeSoftness}
       />
     </mesh>
   );
