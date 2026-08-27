@@ -88,7 +88,6 @@ function fbmSmooth(px, py, octaves, persistence, seed) {
   let value = 0.0;
   let amplitude = 1.0;
   let frequency = 1.0;
-  let weight = 1.0;
 
   for (let i = 0; i < octaves; i++) {
     value += amplitude * cnoise(px * frequency + seed, py * frequency + seed);

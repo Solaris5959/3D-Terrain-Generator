@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { extend, useFrame, useLoader } from "@react-three/fiber";
 import { useControls, button } from "leva";
 import { vertexShader, fragmentShader } from "../shared/shaders/TerrainShaders";
+import { buildTerrainGeometry } from "../../lib/TerrainGeometry";
 import { TERRAIN_SEGMENTS, TERRAIN_PALETTES } from "../../lib/Constants";
 
 class TerrainMaterial extends THREE.ShaderMaterial {
@@ -20,14 +21,14 @@ class TerrainMaterial extends THREE.ShaderMaterial {
         uPersistence: { value: 0.47 },
         // Biome uniforms
         uSnowLine: { value: 1.2 },
-        uTreeLine: { value: -7.0 },
+        uGrassLine: { value: -7.0 },
         uBlendSoftness: { value: 8.0 },
         // Color uniforms initialized with default palette
         uSnow: { value: null },
         uRock: { value: null },
         uGrass: { value: null },
         uTextureScale: { value: 10.0 },
-        uGrassSlope: { value: 0.70 },
+        uGrassSlope: { value: 0.7 },
         uSnowSlope: { value: 0.65 },
         uSlopeSoftness: { value: 0.15 },
         // Normals for textures
@@ -47,25 +48,33 @@ class TerrainMaterial extends THREE.ShaderMaterial {
 
 extend({ TerrainMaterial });
 
-export default function Terrain({ started, onBake, setIsLoading, setLoadingText }) {
+export default function Terrain({
+  started,
+  onBake,
+  setIsLoading,
+  setLoadingText,
+}) {
   const basePath = import.meta.env.BASE_URL;
 
-  const [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm ] = useLoader(THREE.TextureLoader, [
-    `${basePath}2kGrassPacked.png`, 
-    `${basePath}2kSnowPacked.png`,
-    `${basePath}2kRockPacked.png`,
-    `${basePath}2kGrassNormal.png`,
-    `${basePath}2kSnowNormal.png`,
-    `${basePath}2kRockNormal.png`
-  ]);
+  const [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm] = useLoader( // Textures for terrain
+    THREE.TextureLoader,
+    [
+      `${basePath}2kGrassPacked.png`,
+      `${basePath}2kSnowPacked.png`,
+      `${basePath}2kRockPacked.png`,
+      `${basePath}2kGrassNormal.png`,
+      `${basePath}2kSnowNormal.png`,
+      `${basePath}2kRockNormal.png`,
+    ],
+  );
 
-  useMemo(() => {
-    [grassTex, snowTex, rockTex].forEach(tex => {
+  useMemo(() => { 
+    [grassTex, snowTex, rockTex].forEach((tex) => { // Wrap the color/roughness maps in sRGB
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
       tex.colorSpace = THREE.SRGBColorSpace;
     });
 
-    [grassNorm, snowNorm, rockNorm].forEach(tex => {
+    [grassNorm, snowNorm, rockNorm].forEach((tex) => { // Wrap the normal maps
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     });
   }, [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm]);
@@ -102,7 +111,7 @@ export default function Terrain({ started, onBake, setIsLoading, setLoadingText 
     Model: { options: ["Smooth Perlin", "Ridged Perlin"] },
   });
 
-  const useRidged = Model === "Ridged Perlin";
+  const useRidged = Model === "Ridged Perlin"; // Swap models if the Ridged Perlin option is selected
 
   // When the model switches, update the shader macro and force a recompile
   useEffect(() => {
@@ -112,17 +121,17 @@ export default function Terrain({ started, onBake, setIsLoading, setLoadingText 
     }
   }, [useRidged]);
 
-  // Terrain Parameters (Rebuilds limits if InsaneMode is toggled)
+  // Leva Controls for Terrain Parameters (Rebuilds limits if InsaneMode is toggled)
   const terrainParams = useControls(
     "Terrain Settings",
     {
       Segments: {
         options: Object.fromEntries(
           Object.entries(TERRAIN_SEGMENTS).filter(
-            ([key, value]) => InsaneMode || value <= 512
-          )
+            ([key, value]) => InsaneMode || value <= 512,
+          ),
         ),
-        value: TERRAIN_SEGMENTS['512']
+        value: TERRAIN_SEGMENTS["512"],
       },
       Seed: { value: 69, min: 0, max: 1000, step: 1 },
       Scale: { value: 100.0, min: 1.0, max: InsaneMode ? 500.0 : 100.0 },
@@ -130,57 +139,56 @@ export default function Terrain({ started, onBake, setIsLoading, setLoadingText 
       Octaves: { value: 9, min: 1, max: InsaneMode ? 20 : 10, step: 1 },
       Persistence: { value: 0.47, min: 0.1, max: InsaneMode ? 2.0 : 1.0 },
     },
-    [InsaneMode], // Dependency array ensures Leva rebuilds max boundaries
+    [InsaneMode],
   );
 
   // UseMemo prevents the geometry from rebuilding every frame, object is the geometry of the terrain mesh/bounding box
   const geometry = useMemo(
-    () =>
-      new THREE.BoxGeometry(
-        100,
-        1000,
-        100,
-        terrainParams.Segments || 512, // fallback if hidden
-        1,
-        terrainParams.Segments || 512,
-      ),
-    [terrainParams.Segments],
-  );
+  () => buildTerrainGeometry(100, 1000, terrainParams.Segments || 512),
+  [terrainParams.Segments],
+);
 
   // Leva Controls for biome parameters
-  const { Palette, SnowLine, TreeLine, BlendSoftness, GrassSlope, SnowSlope, SlopeSoftness, TextureScale } = useControls(
-    "Biome Settings",
-    {
-      Palette: {
-        options: TERRAIN_PALETTES,
-        value: TERRAIN_PALETTES["Vibrant"],
-      },
-      SnowLine: { value: 1.2, min: -20.0, max: 40.0 },
-      TreeLine: { value: -7.0, min: -40.0, max: 40.0 },
-      BlendSoftness: { value: 8.0, min: 0.1, max: 10.0 },
-      GrassSlope: { value: 0.70, min: 0.0, max: 1.0, step: 0.01 },
-      SnowSlope: { value: 0.65, min: 0.0, max: 1.0, step: 0.01 },
-      SlopeSoftness: { value: 0.15, min: 0.01, max: 0.5, step: 0.01 },
-      TextureScale: { value: 10.0, min: 1.0, max: 50.0 },
+  const {
+    Palette,
+    SnowLine,
+    GrassLine,
+    BlendSoftness,
+    GrassSlope,
+    SnowSlope,
+    SlopeSoftness,
+    TextureScale,
+  } = useControls("Biome Settings", {
+    Palette: {
+      options: TERRAIN_PALETTES,
+      value: TERRAIN_PALETTES["Vibrant"],
     },
-  );
+    SnowLine: { value: 1.2, label: "Snow Line", min: -20.0, max: 40.0 },
+    GrassLine: { value: -7.0, label: "Grass Line", min: -40.0, max: 40.0 },
+    BlendSoftness: { value: 8.0, label: "Texture Blending Softness", min: 0.1, max: 10.0 },
+    GrassSlope: { value: 0.7, label: "Grass Slope", min: 0.0, max: 1.0, step: 0.01 },
+    SnowSlope: { value: 0.65, label: "Snow Slope", min: 0.0, max: 1.0, step: 0.01 },
+    SlopeSoftness: { value: 0.15, label: "Slope Softness", min: 0.01, max: 0.5, step: 0.01 },
+    TextureScale: { value: 10.0, label: "Texture Scale", min: 1.0, max: 50.0 },
+  });
 
   // Convert hex strings to THREE.Color objects only when the dropdown changes
-  const biomeColors = useMemo(() => {
-    return {
-      snow: new THREE.Color(Palette.snow),
-      rock: new THREE.Color(Palette.rock),
-      tree: new THREE.Color(Palette.tree),
-    };
-  }, [Palette]);
+  // const biomeColors = useMemo(() => {
+  //   return {
+  //     snow: new THREE.Color(Palette.snow),
+  //     rock: new THREE.Color(Palette.rock),
+  //     Grass: new THREE.Color(Palette.Grass),
+  //   };
+  // }, [Palette]);
 
+  // Pipeline for baking the terrain pre erosion simulation
   useControls("Pipeline", () => ({
     "Bake & Erode": button((get) => {
-      // 1. Show loading screen immediately
+      // Show loading screen immediately
       setIsLoading(true);
       setLoadingText("Baking Terrain Data...");
 
-      const liveParams = {
+      const liveParams = { // Gather terrain parameters for one-time terrain bake
         Seed: get("Terrain Settings.Seed"),
         Scale: get("Terrain Settings.Scale"),
         Height: get("Terrain Settings.Height"),
@@ -193,13 +201,16 @@ export default function Terrain({ started, onBake, setIsLoading, setLoadingText 
       const terrainSize = 100;
       const insaneFlag = get("Settings.InsaneMode");
 
-      // 2. Initialize the Web Worker (type: 'module' handles imports inside the worker)
-      const worker = new Worker(new URL('./HeightmapWorker.js', import.meta.url), { type: 'module' });
+      // Initialize Web Worker for building the terrain heightmap
+      const worker = new Worker(
+        new URL("./HeightmapWorker.js", import.meta.url),
+        { type: "module" },
+      );
 
-      // 3. Listen for the result
+      // Configuring worker, process to run upon result of Web Worker
       worker.onmessage = (e) => {
         const { heightMap } = e.data;
-        
+
         onBake({
           insaneMode: insaneFlag,
           segments: numSegments,
@@ -210,13 +221,13 @@ export default function Terrain({ started, onBake, setIsLoading, setLoadingText 
         worker.terminate(); // Clean up worker
       };
 
-      worker.onerror = (error) => {
+      worker.onerror = (error) => { // Catch baking error on worker
         console.error("Worker error:", error);
         setIsLoading(false);
         worker.terminate();
       };
 
-      // 4. Send data to worker to begin
+      // Send data to worker to begin
       worker.postMessage({ numSegments, terrainSize, liveParams });
     }),
   }));
@@ -232,7 +243,7 @@ export default function Terrain({ started, onBake, setIsLoading, setLoadingText 
         uniforms-uOctaves-value={terrainParams.Octaves}
         uniforms-uPersistence-value={terrainParams.Persistence}
         uniforms-uSnowLine-value={SnowLine}
-        uniforms-uTreeLine-value={TreeLine}
+        uniforms-uGrassLine-value={GrassLine}
         uniforms-uBlendSoftness-value={BlendSoftness}
         uniforms-uGrass-value={grassTex}
         uniforms-uRock-value={rockTex}

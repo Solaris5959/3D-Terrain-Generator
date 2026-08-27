@@ -1,12 +1,14 @@
-import React, { useMemo, useRef, useEffect, Suspense } from "react";
+import React, { useMemo, useRef, useEffect } from "react";
 import * as THREE from "three";
-import { extend, useFrame, useLoader } from "@react-three/fiber";
+import { extend, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { useControls, button } from "leva";
 import {
   bakedVertexShader,
   fragmentShader,
 } from "../shared/shaders/TerrainShaders";
+import { buildTerrainGeometry } from "../../lib/TerrainGeometry";
 import { TERRAIN_PALETTES } from "../../lib/Constants";
+import { exportTerrainToGLB } from "../../lib/TerrainExporter";
 
 // Create a new material class for the baked shader
 class BakedTerrainMaterial extends THREE.ShaderMaterial {
@@ -15,14 +17,14 @@ class BakedTerrainMaterial extends THREE.ShaderMaterial {
       uniforms: {
         // Biome uniforms
         uSnowLine: { value: 20.0 },
-        uTreeLine: { value: 5.0 },
+        uGrassLine: { value: 5.0 },
         uBlendSoftness: { value: 2.0 },
         // Color uniforms initialized with default palette
         uSnow: { value: null },
         uRock: { value: null },
         uGrass: { value: null },
         uTextureScale: { value: 10.0 },
-        uGrassSlope: { value: 0.70 },
+        uGrassSlope: { value: 0.7 },
         uSnowSlope: { value: 0.55 },
         uSlopeSoftness: { value: 0.15 },
         // Normals for textures
@@ -51,25 +53,28 @@ export default function ErosionSim({
 
   const basePath = import.meta.env.BASE_URL;
 
-  const [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm ] = useLoader(THREE.TextureLoader, [
+  const [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm] = useLoader(
+    THREE.TextureLoader,
+    [
       `${basePath}2kGrassPacked.png`,
       `${basePath}2kSnowPacked.png`,
       `${basePath}2kRockPacked.png`,
       `${basePath}2kGrassNormal.png`,
       `${basePath}2kSnowNormal.png`,
-      `${basePath}2kRockNormal.png`
-    ]);
-  
-    useMemo(() => {
-      [grassTex, snowTex, rockTex].forEach(tex => {
-        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-        tex.colorSpace = THREE.SRGBColorSpace;
-      });
-  
-      [grassNorm, snowNorm, rockNorm].forEach(tex => {
-        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-      });
-    }, [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm]);
+      `${basePath}2kRockNormal.png`,
+    ],
+  );
+
+  useMemo(() => {
+    [grassTex, snowTex, rockTex].forEach((tex) => {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.colorSpace = THREE.SRGBColorSpace;
+    });
+
+    [grassNorm, snowNorm, rockNorm].forEach((tex) => {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    });
+  }, [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm]);
 
   const materialRef = useRef();
   const geometryRef = useRef();
@@ -90,30 +95,56 @@ export default function ErosionSim({
     }
   });
 
+  const { gl } = useThree();
+
+  const handleExport = (includeTextures) => {
+    if (!geometryRef.current) return;
+
+    setIsLoading(true);
+    setLoadingText("Baking Textures & Generating .glb...");
+
+    exportTerrainToGLB(
+      gl,                          // WebGL Renderer
+      geometryRef.current,         // Your live mesh
+      heights,                     // Raw height data
+      segments,                    // Resolution
+      terrainSize,                 // Size (100)
+      includeTextures,             // Boolean flag
+      () => setIsLoading(false),
+      () => setIsLoading(false)
+    );
+  };
+
   // Duplicate of Biome settings Leva control panel from Terrain component
-  const { Palette, SnowLine, TreeLine, BlendSoftness, GrassSlope, SnowSlope, SlopeSoftness, TextureScale } = useControls(
-    "Biome Settings",
-    {
-      Palette: {
-        options: TERRAIN_PALETTES,
-        value: TERRAIN_PALETTES["Vibrant"],
-      },
-      SnowLine: { value: 1.2, min: -20.0, max: 40.0 },
-      TreeLine: { value: -11.8, min: -40.0, max: 40.0 },
-      BlendSoftness: { value: 8.0, min: 0.1, max: 10.0 },
-      GrassSlope: { value: 0.70, min: 0.0, max: 1.0, step: 0.01 },
-      SnowSlope: { value: 0.65, min: 0.0, max: 1.0, step: 0.01 },
-      SlopeSoftness: { value: 0.15, min: 0.01, max: 0.5, step: 0.01 },
-      TextureScale: { value: 10.0, min: 1.0, max: 50.0 },
+  const {
+    Palette,
+    SnowLine,
+    GrassLine,
+    BlendSoftness,
+    GrassSlope,
+    SnowSlope,
+    SlopeSoftness,
+    TextureScale,
+  } = useControls("Biome Settings", {
+    Palette: {
+      options: TERRAIN_PALETTES,
+      value: TERRAIN_PALETTES["Vibrant"],
     },
-  );
+    SnowLine: { value: 1.2, label: "Snow Line", min: -20.0, max: 40.0 },
+    GrassLine: { value: -7.0, label: "Grass Line", min: -40.0, max: 40.0 },
+    BlendSoftness: { value: 8.0, label: "Texture Blending Softness", min: 0.1, max: 10.0 },
+    GrassSlope: { value: 0.7, label: "Grass Slope", min: 0.0, max: 1.0, step: 0.01 },
+    SnowSlope: { value: 0.65, label: "Snow Slope", min: 0.0, max: 1.0, step: 0.01 },
+    SlopeSoftness: { value: 0.15, label: "Slope Softness", min: 0.01, max: 0.5, step: 0.01 },
+    TextureScale: { value: 10.0, label: "Texture Scale", min: 1.0, max: 50.0 },
+  });
 
   // Convert hex strings to THREE.Color objects only when the dropdown changes
   const biomeColors = useMemo(() => {
     return {
       snow: new THREE.Color(Palette.snow),
       rock: new THREE.Color(Palette.rock),
-      tree: new THREE.Color(Palette.tree),
+      Grass: new THREE.Color(Palette.Grass),
     };
   }, [Palette]);
 
@@ -121,37 +152,17 @@ export default function ErosionSim({
   useControls(
     "Erosion Settings",
     () => ({
-      InsaneMode: {
-        value: insaneMode,
-        disabled: true,
-      },
-      DropsK: {
-        label: "Drops (k)",
-        value: 12,
-        min: 1,
-        max: insaneMode ? 500 : 50,
-        step: 1,
-      },
-      ErosionRate: { value: 0.1, min: 0.01, max: 1.0 },
-      TalusAngle: { value: 0.8, min: 0.1, max: 3.0, step: 0.1 },
-      ThermalIterations: {
-        value: 10,
-        min: 0,
-        max: insaneMode ? 500 : 20,
-        step: 1,
-      },
+      InsaneMode: { value: insaneMode, label: "Insane Mode", disabled: true },
+      DropsK: { label: "Drops (k)", value: 12, min: 1, max: insaneMode ? 500 : 50, step: 1 },
+      ErosionRate: { value: 0.1, label: "Erosion Rate", min: 0.01, max: 1.0 },
+      TalusAngle: { value: 0.8, label: "Talus Angle", min: 0.1, max: 3.0, step: 0.1 },
+      ThermalIterations: { value: 10, label: "Thermal Iterations", min: 0, max: insaneMode ? 500 : 20, step: 1 },
       "Run Erosion": button((get) => {
         const liveDropCount = get("Erosion Settings.DropsK") * 1000;
         const liveErosionRate = get("Erosion Settings.ErosionRate");
         const liveTalus = get("Erosion Settings.TalusAngle");
         const liveThermalIters = get("Erosion Settings.ThermalIterations");
-
-        runSimulation(
-          liveDropCount,
-          liveErosionRate,
-          liveTalus,
-          liveThermalIters,
-        );
+        runSimulation(liveDropCount, liveErosionRate, liveTalus, liveThermalIters);
       }),
       "Return to Generator": button(() => {
         onReturn();
@@ -160,16 +171,23 @@ export default function ErosionSim({
     [insaneMode],
   );
 
+  useControls(
+    "Export", 
+    () => ({
+      IncludeTextures: { value: true, label: "Export Textures" },
+      "Export Terrain": button((get) => {
+        // Fetch the boolean using the new folder namespace
+        const includeTex = get("Export.IncludeTextures");
+        
+        setTimeout(() => handleExport(includeTex), 50); 
+      }),
+    })
+  );
+
   // Create an unmodified BoxGeometry once to use as a structural template
   const baseGeometry = useMemo(() => {
-    const geo = new THREE.BoxGeometry(
-      terrainSize,
-      1000,
-      terrainSize,
-      segments,
-      1,
-      segments,
-    );
+    const geo = buildTerrainGeometry(terrainSize, 1000, segments);
+
     const count = geo.attributes.position.count;
     const isWallArray = new Float32Array(count);
     const normals = geo.attributes.normal.array;
@@ -263,23 +281,21 @@ export default function ErosionSim({
     });
   };
 
-  // Because the geometry is already perfectly deformed before mounting,
-  // we just use this effect to dismiss the initial load screen once mounted.
+  // Effect to dismiss load screen once geometry is mounted
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 50); // Tiny buffer for Three.js to push vertices to the GPU
+    }, 50);
 
     return () => clearTimeout(timer);
   }, [setIsLoading]);
 
-  // Update shader uniforms for biome settings whenever they change
   return (
     <mesh geometry={geometry} position={[0, -500, 0]} ref={geometryRef}>
       <bakedTerrainMaterial
         ref={materialRef}
         uniforms-uSnowLine-value={SnowLine}
-        uniforms-uTreeLine-value={TreeLine}
+        uniforms-uGrassLine-value={GrassLine}
         uniforms-uBlendSoftness-value={BlendSoftness}
         uniforms-uGrass-value={grassTex}
         uniforms-uRock-value={rockTex}

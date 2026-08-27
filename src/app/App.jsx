@@ -15,7 +15,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("");
 
-  const backgroundColor = "#111111";
+  const backgroundColor = "#171513";
 
   // Callback function to handle baking the terrain data from the Terrain component
   const handleBakeTerrain = (heightmapArray) => {

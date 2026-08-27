@@ -10,7 +10,7 @@ export class ErosionSimulator {
     this.initializeBrush();
   }
 
-  // --- Hydraulic Erosion Parameters ---
+  // Hydraulic Erosion Parameters (Raindrop simulation)
   inertia = 0.05; // How much the droplet resists changing direction
   sedimentCapacityFactor = 4.0; // Multiplier for how much sediment a drop can hold
   minSedimentCapacity = 0.01; // Prevents droplets from dropping everything instantly
@@ -20,12 +20,12 @@ export class ErosionSimulator {
   gravity = 9.8; // Downhill acceleration
   maxDropletLifetime = 200; // Max steps before a droplet is forced to die
 
-  // --- Thermal Erosion Parameters ---
+  // Thermal Erosion Parameters (Sloughing)
   thermalIterations = 10; // How many smoothing passes to run
   talusAngle = 0.8; // Critical angle - slopes steeper than this will slump
   thermalFraction = 0.5; // How much material moves per iteration (keep under 0.5)
 
-  // Pre-calculates the brush weights for every node on the map
+  // Precalc brush weights for every node on the map
   initializeBrush() {
     const radius = this.erosionRadius;
 
@@ -64,7 +64,7 @@ export class ErosionSimulator {
         }
       }
 
-      // Normalize weights so they always sum up to exactly 1.0
+      // Normalize weights
       for (let j = 0; j < nodeWeights.length; j++) {
         nodeWeights[j] /= weightSum;
       }
@@ -74,7 +74,7 @@ export class ErosionSimulator {
     }
   }
 
-  // Simulation function, runs the hydraulic erosion simulation, and then the thermal erosion pass
+  // Simulation function, runs hydraulic erosion simulation, then thermal erosion pass
   simulate(dropletCount) {
     for (let i = 0; i < dropletCount; i++) {
       // Spawn Droplets at Random Positions
@@ -108,7 +108,7 @@ export class ErosionSimulator {
         posX += dirX;
         posY += dirY;
 
-        // Stop simulating if it falls off the map
+        // Stop simulating if drop falls off the map
         if (
           posX < 0 ||
           posX >= this.mapSize - 1 ||
@@ -171,35 +171,35 @@ export class ErosionSimulator {
 
   // --- Helper Functions for ErosionSimulator ---
 
-  // Calculates the height and gradient at a given floating-point position (posX, posY) using bilinear interpolation
+  // Calculates height and gradient at given floating-point position (posX, posY) using bilinear interpolation
   calculateHeightAndGradient(posX, posY) {
     const mapSize = this.mapSize;
 
-    // Get the integer coordinates of the top-left node of the current cell
+    // Get integer coordinates of top-left node of current cell
     const nodeX = Math.floor(posX);
     const nodeY = Math.floor(posY);
 
-    // Get the fractional offset inside the cell (u, v will be between 0.0 and 1.0)
+    // Get fractional offset inside cell (u, v will be between 0.0 and 1.0)
     const u = posX - nodeX;
     const v = posY - nodeY;
 
-    // Calculate the 1D array indices for the 4 corners of the cell
+    // Calculate 1D array indices for the 4 corners of cell
     const nodeIndexNW = nodeY * mapSize + nodeX; // Top-Left
     const nodeIndexNE = nodeIndexNW + 1; // Top-Right
     const nodeIndexSW = nodeIndexNW + mapSize; // Bottom-Left
     const nodeIndexSE = nodeIndexSW + 1; // Bottom-Right
 
-    // Get the current heights of the 4 corners from the Float32Array
+    // Get current heights of the 4 corners from Float32Array
     const hNW = this.map[nodeIndexNW];
     const hNE = this.map[nodeIndexNE];
     const hSW = this.map[nodeIndexSW];
     const hSE = this.map[nodeIndexSE];
 
-    // Calculate the gradient (slope direction) using bilinear interpolation
+    // Calculate gradient using bilinear interpolation
     const gradientX = (hNE - hNW) * (1 - v) + (hSE - hSW) * v;
     const gradientY = (hSW - hNW) * (1 - u) + (hSE - hNE) * u;
 
-    // Calculate the exact height at the droplet's floating-point position
+    // Calculate exact height at droplet's floating-point position
     const height =
       hNW * (1 - u) * (1 - v) +
       hNE * u * (1 - v) +
@@ -209,45 +209,45 @@ export class ErosionSimulator {
     return { height, gradientX, gradientY };
   }
 
-  // Deposits sediment using the pre-calculated circular brush
+  // Deposits sediment using pre-calculated circular brush
   deposit(nodeX, nodeY, amount) {
     const nodeIndex = nodeY * this.mapSize + nodeX;
     const brushIndexList = this.brushIndices[nodeIndex];
     const brushWeightList = this.brushWeights[nodeIndex];
 
     for (let i = 0; i < brushIndexList.length; i++) {
-      // Iterate through all neighbors in the brush
+      // Iterate through all neighbors in brush
       const neighborIndex = brushIndexList[i];
       const weight = brushWeightList[i];
 
-      this.map[neighborIndex] += amount * weight; // Increase the height of the neighbor based on the weight
+      this.map[neighborIndex] += amount * weight; // Increase height of the neighbor based on the weight
     }
   }
 
-  // Erodes terrain using the pre-calculated circular brush
+  // Erodes terrain using pre-calculated circular brush
   erode(nodeX, nodeY, amount) {
     const nodeIndex = nodeY * this.mapSize + nodeX;
     const brushIndexList = this.brushIndices[nodeIndex];
     const brushWeightList = this.brushWeights[nodeIndex];
 
     for (let i = 0; i < brushIndexList.length; i++) {
-      // Iterate through all neighbors in the brush
+      // Iterate through all neighbors in brush
       const neighborIndex = brushIndexList[i];
       const weight = brushWeightList[i];
 
-      this.map[neighborIndex] -= amount * weight; // Decrease the height of the neighbor based on the weight
+      this.map[neighborIndex] -= amount * weight; // Decrease height of the neighbor based on the weight
     }
   }
 
-  // --- Thermal Erosion Function ---
+  // Thermal Erosion function
   applyThermalErosion() {
-    // Setup arrays to check the 8 neighboring vertices (N, S, E, W, NE, NW, SE, SW)
+    // Setup arrays to check 8 neighboring vertices (N, S, E, W, NE, NW, SE, SW)
     const dx = [-1, 1, 0, 0, -1, -1, 1, 1];
     const dy = [0, 0, -1, 1, -1, 1, -1, 1];
-    // Diagonals are further away, so we divide by sqrt(2) when checking slopes
+    // Diagonals are further away, so divide by sqrt(2) when checking slopes (thanks pythagoras)
     const dist = [1, 1, 1, 1, Math.SQRT2, Math.SQRT2, Math.SQRT2, Math.SQRT2];
 
-    // Use a secondary buffer to store changes to prevent directional smearing artifacts
+    // Use secondary buffer to store changes to prevent directional smearing artifacts
     let nextMap = new Float32Array(this.map);
 
     for (let iter = 0; iter < this.thermalIterations; iter++) {
@@ -260,7 +260,7 @@ export class ErosionSimulator {
           let totalDiff = 0;
           let diffs = new Array(8).fill(0);
 
-          // 1. Check all 8 neighbors to find steep drops
+          // Check all 8 neighbors to find steep drops
           for (let n = 0; n < 8; n++) {
             const nx = x + dx[n];
             const ny = y + dy[n];
@@ -273,7 +273,7 @@ export class ErosionSimulator {
               // Calculate slope
               const diff = (height - nHeight) / dist[n];
 
-              // If the slope is steeper than the talus angle, queue it for slumping
+              // If slope is steeper than the talus angle, queue it for slumping
               if (diff > this.talusAngle) {
                 diffs[n] = diff;
                 totalDiff += diff;
@@ -282,7 +282,7 @@ export class ErosionSimulator {
             }
           }
 
-          // 2. If there are steep drops, move dirt downhill
+          // If there are steep drops, move dirt downhill
           if (totalDiff > 0) {
             // Calculate how much total dirt to move (a fraction of the max slope)
             const amountToMove =
@@ -301,12 +301,12 @@ export class ErosionSimulator {
                 totalMoved += move;
               }
             }
-            // Remove the dirt from the current vertex
+            // Remove dirt from the current vertex
             nextMap[index] -= totalMoved;
           }
         }
       }
-      // Sync the changes back to the main map for the next iteration
+      // Sync changes back to the main map for the next iteration
       this.map.set(nextMap);
     }
   }

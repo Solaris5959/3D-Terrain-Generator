@@ -89,7 +89,8 @@ export const vertexShader = `
         return value;
     }
 
-    // Fractal Brownian Motion (FBM) Loop, layers noise at different frequencies and amplitudes to create more complex terrain features
+    // Fractal Brownian Motion (FBM) Loop, ridged version abs()'s the negative segments of the distribution, then inverts.
+    // Leads to sharp peaks with steep concave cliffs 
     float fbmRidged(vec2 p) { // fbmRidged
         float value = 0.0;
         float amplitude = 1.0;
@@ -114,7 +115,7 @@ export const vertexShader = `
             amplitude *= uPersistence; // Each loop will have less influence on the final noise value (height)
         }
 
-        return value - 1.0; // Decrease height to work with snow and tree lines
+        return value - 1.0; // Decrease height to work with snow and Grass lines
     }
 
     // Helper function to get the elevation of the terrain at a given point, using FBM and scaling it by the height multiplier
@@ -138,20 +139,20 @@ export const vertexShader = `
             newPosition.y += h; 
             vHeight = h; 
 
-            // Calculate a secondary noise pass specifically for texture border blending
+            // Calculate secondary noise pass specifically for texture border blending
             vEdgeNoise = cnoise(position.xz * 0.15) * 4.0; // 0.15 freq, 4.0 amp
         }
         
         // Calculate normals for lighting
         if (isTopFace) {
-            float h = getElevation(position.xz);  // Get the height of the terrain at the current vertex position
+            float h = getElevation(position.xz);  // Get height of terrain at current vertex position
             float step = 0.01; 
 
-            // Calculate the height of two adjacent vertices in the x and z directions to compute the slope of the terrain
+            // Calculate height of two adjacent vertices in the x and z directions to compute the slope of the terrain
             float hx = getElevation(position.xz + vec2(step, 0.0));
             float hz = getElevation(position.xz + vec2(0.0, step));
         
-            // Calculate the tangent vectors based on the height differences in the x and z directions
+            // Calculate tangent vectors based on the height differences in the x and z directions
             vec3 t1 = vec3(step, hx - h, 0.0); 
             vec3 t2 = vec3(0.0, hz - h, step); 
         
@@ -183,7 +184,7 @@ export const fragmentShader = `
     uniform vec3 uLightDir;
 
     uniform float uSnowLine;
-    uniform float uTreeLine;
+    uniform float uGrassLine;
     uniform float uBlendSoftness;
 
     uniform float uGrassSlope;
@@ -206,7 +207,9 @@ export const fragmentShader = `
     float ambientLightIntensity = 0.30; // Ambient Light Intensity, affects shadows
     float diffuseLightIntensity = 1.5; // Diffuse Light Intensity, affects highlights
 
-    // --- Triplanar Mapping Helper ---
+    // --- Helper Functions ---
+
+    // Calculate triplanar color data
     vec4 getTriplanar(sampler2D tex, vec3 pos, vec3 normal, float scale) {
         // Calculate UVs for all 3 projection planes
         vec2 uvX = pos.zy / scale;
@@ -232,7 +235,7 @@ export const fragmentShader = `
         return (colX * blendWeight.x) + (colY * blendWeight.y) + (colZ * blendWeight.z);
     }
 
-    // --- Triplanar Normal Mapping Helper ---
+    // Calculate triplanar normal map data
     vec3 getTriplanarNormal(sampler2D tex, vec3 pos, vec3 normal, float scale) {
         // Calculate UVs
         vec2 uvX = pos.zy / scale;
@@ -259,6 +262,7 @@ export const fragmentShader = `
         return normalize(nX * blendWeight.x + nY * blendWeight.y + nZ * blendWeight.z);
     }
     
+    // --- Main Texture Shader ---
     void main() {
         vec3 finalColor;
         float finalRoughness;
@@ -292,8 +296,8 @@ export const fragmentShader = `
             // Calculate how flat the geometry is (1.0 = flat, 0.0 = vertical)
             float flatness = max(dot(vNormal, vec3(0.0, 1.0, 0.0)), 0.0);
 
-            // 1.0 below tree line, fades to 0.0 above it
-            float grassAltitude = 1.0 - smoothstep(uTreeLine - uBlendSoftness, uTreeLine + uBlendSoftness, noisyHeight);
+            // 1.0 below Grass line, fades to 0.0 above it
+            float grassAltitude = 1.0 - smoothstep(uGrassLine - uBlendSoftness, uGrassLine + uBlendSoftness, noisyHeight);
 
             // 1.0 above snow line, fades to 0.0 below it
             float snowAltitude = smoothstep(uSnowLine - uBlendSoftness, uSnowLine + uBlendSoftness, noisyHeight);
@@ -359,7 +363,7 @@ export const bakedVertexShader = `
     varying vec3 vPosition;
     varying vec3 vWorldPosition;
 
-    // We only need cnoise here for the texture edge blending, copied from the vertex shader above
+    // Copied from vertex shader, just to calculate noise
     vec4 permute(vec4 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
     float cnoise(vec2 P){
         vec4 cellLoc = floor(P.xyxy) + vec4(0.0, 0.0, 1.0, 1.0);
@@ -416,14 +420,14 @@ export const bakedVertexShader = `
     }
 
     void main() {
-        // Y value is baked in, just pass it to shader
+        // Y value already baked in, simply pass to shader
         vHeight = position.y - 500.0; 
         vIsWall = aIsWall;
         
-        // Get the normal for lighting, transform it to world space using the model matrix
+        // Get normal for lighting, transform it to world space using the model matrix
         vNormal = normalize(mat3(modelMatrix) * normal);
         
-        // Keep edge noise for texture blending, but scale it down to avoid extreme values
+        // Keep edge noise for texture blending, scale it down to avoid extreme values
         vEdgeNoise = cnoise(position.xz * 0.15) * 4.0; 
 
         vPosition = position; // Pass local coordinates for texture tiling
