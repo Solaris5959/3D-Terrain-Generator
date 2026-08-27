@@ -13,13 +13,21 @@ class BakedTerrainMaterial extends THREE.ShaderMaterial {
   constructor() {
     super({
       uniforms: {
+        // Biome uniforms
         uSnowLine: { value: 20.0 },
         uTreeLine: { value: 5.0 },
         uBlendSoftness: { value: 2.0 },
+        // Color uniforms initialized with default palette
         uSnow: { value: null },
         uRock: { value: null },
         uGrass: { value: null },
         uTextureScale: { value: 10.0 },
+        // Normals for textures
+        uGrassNormal: { value: null },
+        uRockNormal: { value: null },
+        uSnowNormal: { value: null },
+        uNormalStrength: { value: 1.5 },
+        // Light direction uniform for lighting calculations in the shader
         uLightDir: { value: new THREE.Vector3(1.0, 1.0, 0.5) },
       },
       vertexShader: bakedVertexShader,
@@ -40,18 +48,25 @@ export default function ErosionSim({
 
   const basePath = import.meta.env.BASE_URL;
 
-  const [grassTex, snowTex, rockTex] = useLoader(THREE.TextureLoader, [
-    `${basePath}2kGrassPacked.png`, // Ensure paths match your public folder structure
-    `${basePath}2kSnowPacked.png`,
-    `${basePath}2kRockPacked.png`,
-  ]);
-
-  useMemo(() => {
-    [grassTex, snowTex, rockTex].forEach((tex) => {
-      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-      tex.colorSpace = THREE.SRGBColorSpace;
-    });
-  }, [grassTex, snowTex, rockTex]);
+  const [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm ] = useLoader(THREE.TextureLoader, [
+      `${basePath}2kGrassPacked.png`,
+      `${basePath}2kSnowPacked.png`,
+      `${basePath}2kRockPacked.png`,
+      `${basePath}2kGrassNormal.png`,
+      `${basePath}2kSnowNormal.png`,
+      `${basePath}2kRockNormal.png`
+    ]);
+  
+    useMemo(() => {
+      [grassTex, snowTex, rockTex].forEach(tex => {
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.colorSpace = THREE.SRGBColorSpace;
+      });
+  
+      [grassNorm, snowNorm, rockNorm].forEach(tex => {
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      });
+    }, [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm]);
 
   const materialRef = useRef();
   const geometryRef = useRef();
@@ -73,7 +88,7 @@ export default function ErosionSim({
   });
 
   // Duplicate of Biome settings Leva control panel from Terrain component
-  const { Palette, SnowLine, TreeLine, BlendSoftness } = useControls(
+  const { Palette, SnowLine, TreeLine, BlendSoftness, TextureScale } = useControls(
     "Biome Settings",
     {
       Palette: {
@@ -83,6 +98,7 @@ export default function ErosionSim({
       SnowLine: { value: 10.0, min: -20.0, max: 40.0 },
       TreeLine: { value: -11.0, min: -40.0, max: 40.0 },
       BlendSoftness: { value: 8.0, min: 0.1, max: 10.0 },
+      TextureScale: { value: 10.0, min: 1.0, max: 50.0 },
     },
   );
 
@@ -262,7 +278,10 @@ export default function ErosionSim({
         uniforms-uGrass-value={grassTex}
         uniforms-uRock-value={rockTex}
         uniforms-uSnow-value={snowTex}
-        uniforms-uTextureScale-value={10.0}
+        uniforms-uTextureScale-value={TextureScale}
+        uniforms-uGrassNormal-value={grassNorm}
+        uniforms-uRockNormal-value={rockNorm}
+        uniforms-uSnowNormal-value={snowNorm}
       />
     </mesh>
   );

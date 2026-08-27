@@ -26,7 +26,12 @@ class TerrainMaterial extends THREE.ShaderMaterial {
         uSnow: { value: null },
         uRock: { value: null },
         uGrass: { value: null },
-        uTextureScale: { value: 1.0 },
+        uTextureScale: { value: 10.0 },
+        // Normals for textures
+        uGrassNormal: { value: null },
+        uRockNormal: { value: null },
+        uSnowNormal: { value: null },
+        uNormalStrength: { value: 1.5 },
         // Light direction uniform for lighting calculations in the shader
         uLightDir: { value: new THREE.Vector3(1.0, 1.0, 0.5) },
       },
@@ -42,10 +47,13 @@ extend({ TerrainMaterial });
 export default function Terrain({ started, onBake, setIsLoading, setLoadingText }) {
   const basePath = import.meta.env.BASE_URL;
 
-  const [grassTex, snowTex, rockTex] = useLoader(THREE.TextureLoader, [
-    `${basePath}2kGrassPacked.png`, // Ensure paths match your public folder structure
+  const [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm ] = useLoader(THREE.TextureLoader, [
+    `${basePath}2kGrassPacked.png`, 
     `${basePath}2kSnowPacked.png`,
-    `${basePath}2kRockPacked.png`
+    `${basePath}2kRockPacked.png`,
+    `${basePath}2kGrassNormal.png`,
+    `${basePath}2kSnowNormal.png`,
+    `${basePath}2kRockNormal.png`
   ]);
 
   useMemo(() => {
@@ -53,7 +61,11 @@ export default function Terrain({ started, onBake, setIsLoading, setLoadingText 
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
       tex.colorSpace = THREE.SRGBColorSpace;
     });
-  }, [grassTex, snowTex, rockTex]);
+
+    [grassNorm, snowNorm, rockNorm].forEach(tex => {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    });
+  }, [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm]);
 
   // Reference to the terrainMaterial element
   const materialRef = useRef();
@@ -133,7 +145,7 @@ export default function Terrain({ started, onBake, setIsLoading, setLoadingText 
   );
 
   // Leva Controls for biome parameters
-  const { Palette, SnowLine, TreeLine, BlendSoftness } = useControls(
+  const { Palette, SnowLine, TreeLine, BlendSoftness, TextureScale } = useControls(
     "Biome Settings",
     {
       Palette: {
@@ -143,6 +155,7 @@ export default function Terrain({ started, onBake, setIsLoading, setLoadingText 
       SnowLine: { value: 10.0, min: -20.0, max: 40.0 },
       TreeLine: { value: -11.0, min: -40.0, max: 40.0 },
       BlendSoftness: { value: 8.0, min: 0.1, max: 10.0 },
+      TextureScale: { value: 10.0, min: 1.0, max: 50.0 },
     },
   );
 
@@ -218,7 +231,10 @@ export default function Terrain({ started, onBake, setIsLoading, setLoadingText 
         uniforms-uGrass-value={grassTex}
         uniforms-uRock-value={rockTex}
         uniforms-uSnow-value={snowTex}
-        uniforms-uTextureScale-value={10.0}
+        uniforms-uTextureScale-value={TextureScale}
+        uniforms-uGrassNormal-value={grassNorm}
+        uniforms-uRockNormal-value={rockNorm}
+        uniforms-uSnowNormal-value={snowNorm}
       />
     </mesh>
   );

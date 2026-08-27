@@ -9,7 +9,8 @@ export const vertexShader = `
     varying vec3 vNormal;
     varying float vIsWall;
     varying float vEdgeNoise;
-    varying vec2 vPosXZ;
+    varying vec3 vPosition;
+    varying vec3 vWorldPosition;
 
     // --- Perlin Noise Functions ---
 
@@ -127,7 +128,6 @@ export const vertexShader = `
 
     void main() {
         vec3 newPosition = position; // Start with the original vertex position, will be modified for terrain height
-        vPosXZ = position.xz; // Pass local coordinates for texture tiling
         
         // Check if current vertex is part of the terrain (top face), or the bounding box
         bool isTopFace = normal.y > 0.5;
@@ -144,28 +144,30 @@ export const vertexShader = `
         
         // Calculate normals for lighting
         if (isTopFace) {
-        float h = getElevation(position.xz);  // Get the height of the terrain at the current vertex position
-        float step = 0.01; 
+            float h = getElevation(position.xz);  // Get the height of the terrain at the current vertex position
+            float step = 0.01; 
 
-        // Calculate the height of two adjacent vertices in the x and z directions to compute the slope of the terrain
-        float hx = getElevation(position.xz + vec2(step, 0.0));
-        float hz = getElevation(position.xz + vec2(0.0, step));
+            // Calculate the height of two adjacent vertices in the x and z directions to compute the slope of the terrain
+            float hx = getElevation(position.xz + vec2(step, 0.0));
+            float hz = getElevation(position.xz + vec2(0.0, step));
         
-        // Calculate the tangent vectors based on the height differences in the x and z directions
-        vec3 t1 = vec3(step, hx - h, 0.0); 
-        vec3 t2 = vec3(0.0, hz - h, step); 
+            // Calculate the tangent vectors based on the height differences in the x and z directions
+            vec3 t1 = vec3(step, hx - h, 0.0); 
+            vec3 t2 = vec3(0.0, hz - h, step); 
         
-        // Compute normal by cross product of the tangent vectors, then transform it to world space using the model matrix for lighting 
-        vec3 localNormal = normalize(cross(t2, t1));
-        vNormal = normalize(mat3(modelMatrix) * localNormal);
+            // Compute normal by cross product of the tangent vectors, then transform it to world space using the model matrix for lighting 
+            vec3 localNormal = normalize(cross(t2, t1));
+            vNormal = normalize(mat3(modelMatrix) * localNormal);
         
-        vIsWall = 0.0; // Tell the fragment shader to color this like terrain
+            vIsWall = 0.0; // Tell the fragment shader to color this like terrain
         } else {
-        vNormal = normalize(mat3(modelMatrix) * normal); // Use the original normal for the walls and bottom of the box
+            vNormal = normalize(mat3(modelMatrix) * normal); // Use the original normal for the walls and bottom of the box
         
-        vIsWall = 1.0; // Tell the fragment shader to color this as the bounding box
+            vIsWall = 1.0; // Tell the fragment shader to color this as the bounding box
         }
-        
+
+        vPosition = newPosition; // Pass local coordinates for texture tiling
+        vWorldPosition = (modelMatrix * vec4(newPosition, 1.0)).xyz;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
     }
 `;
@@ -175,7 +177,8 @@ export const fragmentShader = `
     varying vec3 vNormal;
     varying float vIsWall;
     varying float vEdgeNoise;
-    varying vec2 vPosXZ;
+    varying vec3 vPosition;
+    varying vec3 vWorldPosition;
 
     uniform vec3 uLightDir;
 
@@ -183,60 +186,148 @@ export const fragmentShader = `
     uniform float uTreeLine;
     uniform float uBlendSoftness;
 
-    // Dynamic Terrain Textures
+    // Albedo / Roughness Maps
     uniform sampler2D uGrass;
     uniform sampler2D uRock;
     uniform sampler2D uSnow;
+    
+    // Normal Maps
+    uniform sampler2D uGrassNormal;
+    uniform sampler2D uRockNormal;
+    uniform sampler2D uSnowNormal;
+    
     uniform float uTextureScale;
+    uniform float uNormalStrength;
 
     float ambientLightIntensity = 0.30; // Ambient Light Intensity, affects shadows
     float diffuseLightIntensity = 1.5; // Diffuse Light Intensity, affects highlights
+
+    // --- Triplanar Mapping Helper ---
+    vec4 getTriplanar(sampler2D tex, vec3 pos, vec3 normal, float scale) {
+        // Calculate UVs for all 3 projection planes
+        vec2 uvX = pos.zy / scale;
+        vec2 uvY = pos.xz / scale;
+        vec2 uvZ = pos.xy / scale;
+
+        // Sample the texture 3 times
+        vec4 colX = texture2D(tex, uvX);
+        vec4 colY = texture2D(tex, uvY);
+        vec4 colZ = texture2D(tex, uvZ);
+
+        // Calculate blend weights based on surface normal
+        vec3 blendWeight = abs(normal);
+        
+        // Sharpen the transitions between planes (Weight ^ 4)
+        blendWeight = blendWeight * blendWeight; 
+        blendWeight = blendWeight * blendWeight; 
+        
+        // Normalize weights
+        blendWeight /= dot(blendWeight, vec3(1.0));
+
+        // Blend the samples and return the final packed data (RGB + Roughness)
+        return (colX * blendWeight.x) + (colY * blendWeight.y) + (colZ * blendWeight.z);
+    }
+
+    // --- Triplanar Normal Mapping Helper ---
+    vec3 getTriplanarNormal(sampler2D tex, vec3 pos, vec3 normal, float scale) {
+        // Calculate UVs
+        vec2 uvX = pos.zy / scale;
+        vec2 uvY = pos.xz / scale;
+        vec2 uvZ = pos.xy / scale;
+
+        // Sample and unpack from [0, 1] to [-1, 1]
+        vec3 tX = texture2D(tex, uvX).xyz * 2.0 - 1.0;
+        vec3 tY = texture2D(tex, uvY).xyz * 2.0 - 1.0;
+        vec3 tZ = texture2D(tex, uvZ).xyz * 2.0 - 1.0;
+
+        // Swizzle the tangent space normals to match the world space planes
+        vec3 nX = vec3(tX.z * sign(normal.x), tX.y, tX.x);
+        vec3 nY = vec3(tY.x, tY.z * sign(normal.y), tY.y);
+        vec3 nZ = vec3(tZ.x, tZ.y, tZ.z * sign(normal.z));
+
+        // Calculate blend weights (same as color)
+        vec3 blendWeight = abs(normal);
+        blendWeight = blendWeight * blendWeight; 
+        blendWeight = blendWeight * blendWeight; 
+        blendWeight /= dot(blendWeight, vec3(1.0));
+
+        // Blend the normals together
+        return normalize(nX * blendWeight.x + nY * blendWeight.y + nZ * blendWeight.z);
+    }
     
     void main() {
-        // Calculate Lambertian reflectance, dot product and clamp minimum to 0.0 to get shadows
-        float diffuse = max(dot(vNormal, uLightDir), 0.0);
-
-        // Calculate final lighting amount by ambient + diffuse, adjust globals to control the overall brightness and contrast of the terrain
-        float lighting = ambientLightIntensity + (diffuse * diffuseLightIntensity);
-        
         vec3 finalColor;
+        float finalRoughness;
         vec3 boxColor = vec3(0.15, 0.15, 0.15); // Dark chunk border
+        vec3 finalNormal = vNormal;
         
         // Apply lighting to the segments of the terrain
         if (vIsWall > 0.5) {
             finalColor = boxColor; // The walls and bottom
         } else {
-            // Calculate UVs based on world position and scale
-            vec2 uv = vPosXZ / uTextureScale;
+            // Get Colors and Roughness of Texture
+            vec4 grassPacked = getTriplanar(uGrass, vPosition, vNormal, uTextureScale);
+            vec4 rockPacked  = getTriplanar(uRock, vPosition, vNormal, uTextureScale);
+            vec4 snowPacked  = getTriplanar(uSnow, vPosition, vNormal, uTextureScale);
 
-            // Sample the packed textures
-            vec4 grassPacked = texture2D(uGrass, uv);
-            vec4 rockPacked  = texture2D(uRock, uv);
-            vec4 snowPacked  = texture2D(uSnow, uv);
-
-            // Extract the RGB color (Albedo)
             vec3 grassColor = grassPacked.rgb;
             vec3 rockColor  = rockPacked.rgb;
             vec3 snowColor  = snowPacked.rgb;
 
-            // Extract Roughness (Alpha) - ready for PBR lighting later
-            float grassRough = grassPacked.a;
-            float rockRough  = rockPacked.a;
-            float snowRough  = snowPacked.a;
+            float grassR = grassPacked.a;
+            float rockR  = rockPacked.a;
+            float snowR  = snowPacked.a;
 
+            // Get Normals of Texture
+            vec3 grassN = getTriplanarNormal(uGrassNormal, vPosition, vNormal, uTextureScale);
+            vec3 rockN  = getTriplanarNormal(uRockNormal, vPosition, vNormal, uTextureScale);
+            vec3 snowN  = getTriplanarNormal(uSnowNormal, vPosition, vNormal, uTextureScale);
+
+            // Calculate Blend Factors
             float noisyHeight = vHeight + vEdgeNoise;
-            
-            // Your existing Leva-controlled blend logic
             float treeFactor = smoothstep(uTreeLine - uBlendSoftness, uTreeLine + uBlendSoftness, noisyHeight);
             float snowFactor = smoothstep(uSnowLine - uBlendSoftness, uSnowLine + uBlendSoftness, noisyHeight);
             
-            // Blend textures based on height
+            // Blend Textures Color and Roughness
             finalColor = grassColor; 
             finalColor = mix(finalColor, rockColor, treeFactor); 
             finalColor = mix(finalColor, snowColor, snowFactor);
+
+            finalRoughness = grassR;
+            finalRoughness = mix(finalRoughness, rockR, treeFactor);
+            finalRoughness = mix(finalRoughness, snowR, snowFactor);
+
+            // Blend Texture Normals
+            vec3 detailNormal = grassN;
+            detailNormal = mix(detailNormal, rockN, treeFactor);
+            detailNormal = mix(detailNormal, snowN, snowFactor);
+
+            // Merge Texture Normal with Base Geometry Normal
+            finalNormal = normalize(vNormal + detailNormal * uNormalStrength);
         }
         
-        gl_FragColor = vec4(finalColor * lighting, 1.0);
+        // Calculate Diffuse Lighting
+        float diffuse = max(dot(finalNormal, uLightDir), 0.0);
+        vec3 baseDiffuse = finalColor * (ambientLightIntensity + (diffuse * diffuseLightIntensity));
+        
+        // Calculate Roughness Lighting
+        // cameraPosition is automatically provided by Three.js
+        vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+        vec3 halfDir = normalize(uLightDir + viewDir);
+        
+        // Convert roughness to specular shininess exponent
+        // 1.0 (very rough) -> wide, dull glint. 0.0 (very smooth) -> sharp, bright glint.
+        float shininess = mix(1024.0, 2.0, finalRoughness);
+        
+        // Specular intensity inversely proportional to roughness (limited to 0.4, prevents blown-out whites)
+        float specularIntensity = max(0.0, 1.0 - finalRoughness) * 0.4; 
+
+        // Calculate specular hit
+        float spec = pow(max(dot(finalNormal, halfDir), 0.0), shininess);
+        vec3 specularHighlight = vec3(1.0) * spec * specularIntensity;
+        
+        // Combine diffuse and specular
+        gl_FragColor = vec4(baseDiffuse + specularHighlight, 1.0);
     }
 `;
 
@@ -247,7 +338,8 @@ export const bakedVertexShader = `
     varying vec3 vNormal;
     varying float vIsWall;
     varying float vEdgeNoise;
-    varying vec2 vPosXZ;
+    varying vec3 vPosition;
+    varying vec3 vWorldPosition;
 
     // We only need cnoise here for the texture edge blending, copied from the vertex shader above
     vec4 permute(vec4 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
@@ -309,7 +401,6 @@ export const bakedVertexShader = `
         // Y value is baked in, just pass it to shader
         vHeight = position.y - 500.0; 
         vIsWall = aIsWall;
-        vPosXZ = position.xz; // Pass local coordinates for texture tiling
         
         // Get the normal for lighting, transform it to world space using the model matrix
         vNormal = normalize(mat3(modelMatrix) * normal);
@@ -317,6 +408,9 @@ export const bakedVertexShader = `
         // Keep edge noise for texture blending, but scale it down to avoid extreme values
         vEdgeNoise = cnoise(position.xz * 0.15) * 4.0; 
 
+        vPosition = position; // Pass local coordinates for texture tiling
+        vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+        
         // Set the final position of the vertex in clip space, using the model-view-projection matrix
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
