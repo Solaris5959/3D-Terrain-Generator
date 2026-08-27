@@ -14,14 +14,14 @@ class TerrainMaterial extends THREE.ShaderMaterial {
       // Define uniforms for the GPU shader
       uniforms: {
         uSeed: { value: 629.0 },
-        uScale: { value: 34.5 },
-        uHeight: { value: 28.5 },
-        uOctaves: { value: 7 },
-        uPersistence: { value: 0.45 },
+        uScale: { value: 100.0 },
+        uHeight: { value: 20.0 },
+        uOctaves: { value: 8 },
+        uPersistence: { value: 0.47 },
         // Biome uniforms
-        uSnowLine: { value: 20.0 },
-        uTreeLine: { value: 5.0 },
-        uBlendSoftness: { value: 2.0 },
+        uSnowLine: { value: 4.6 },
+        uTreeLine: { value: -11.8 },
+        uBlendSoftness: { value: 8.0 },
         // Color uniforms initialized with default palette
         uSnow: { value: null },
         uRock: { value: null },
@@ -122,10 +122,10 @@ export default function Terrain({ started, onBake, setIsLoading, setLoadingText 
         value: TERRAIN_SEGMENTS['512']
       },
       Seed: { value: 629, min: 0, max: 1000, step: 1 },
-      Scale: { value: 34.5, min: 1.0, max: InsaneMode ? 500.0 : 100.0 },
-      Height: { value: 28.5, min: 1.0, max: InsaneMode ? 500.0 : 100.0 },
-      Octaves: { value: 7, min: 1, max: InsaneMode ? 16 : 8, step: 1 },
-      Persistence: { value: 0.45, min: 0.1, max: InsaneMode ? 2.0 : 1.0 },
+      Scale: { value: 100.0, min: 1.0, max: InsaneMode ? 500.0 : 100.0 },
+      Height: { value: 20.0, min: 1.0, max: InsaneMode ? 500.0 : 100.0 },
+      Octaves: { value: 8, min: 1, max: InsaneMode ? 16 : 8, step: 1 },
+      Persistence: { value: 0.47, min: 0.1, max: InsaneMode ? 2.0 : 1.0 },
     },
     [InsaneMode], // Dependency array ensures Leva rebuilds max boundaries
   );
@@ -152,8 +152,8 @@ export default function Terrain({ started, onBake, setIsLoading, setLoadingText 
         options: TERRAIN_PALETTES,
         value: TERRAIN_PALETTES["Vibrant"],
       },
-      SnowLine: { value: 10.0, min: -20.0, max: 40.0 },
-      TreeLine: { value: -11.0, min: -40.0, max: 40.0 },
+      SnowLine: { value: 4.8, min: -20.0, max: 40.0 },
+      TreeLine: { value: -11.8, min: -40.0, max: 40.0 },
       BlendSoftness: { value: 8.0, min: 0.1, max: 10.0 },
       TextureScale: { value: 10.0, min: 1.0, max: 50.0 },
     },

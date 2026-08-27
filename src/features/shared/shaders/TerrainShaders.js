@@ -283,24 +283,41 @@ export const fragmentShader = `
             vec3 rockN  = getTriplanarNormal(uRockNormal, vPosition, vNormal, uTextureScale);
             vec3 snowN  = getTriplanarNormal(uSnowNormal, vPosition, vNormal, uTextureScale);
 
-            // Calculate Blend Factors
             float noisyHeight = vHeight + vEdgeNoise;
-            float treeFactor = smoothstep(uTreeLine - uBlendSoftness, uTreeLine + uBlendSoftness, noisyHeight);
-            float snowFactor = smoothstep(uSnowLine - uBlendSoftness, uSnowLine + uBlendSoftness, noisyHeight);
+
+            // Calculate how flat the geometry is (1.0 = flat, 0.0 = vertical)
+            float flatness = max(dot(vNormal, vec3(0.0, 1.0, 0.0)), 0.0);
+
+            // 1.0 below tree line, fades to 0.0 above it
+            float grassAltitude = 1.0 - smoothstep(uTreeLine - uBlendSoftness, uTreeLine + uBlendSoftness, noisyHeight);
+
+            // 1.0 above snow line, fades to 0.0 below it
+            float snowAltitude = smoothstep(uSnowLine - uBlendSoftness, uSnowLine + uBlendSoftness, noisyHeight);
+
+            // Slope rules (0.8 is roughly a gentle hill, 0.5 is a steep cliff)
+            // Grass only grows on relatively flat ground. Fades out completely on cliffs.
+            float grassSlope = smoothstep(0.70, 0.85, flatness);
+            
+            // Snow can cling to slightly steeper rock than grass, but still falls off sheer cliffs.
+            float snowSlope = smoothstep(0.55, 0.75, flatness);
+
+            // Combine altitude and slope for final weights
+            float grassWeight = grassAltitude * grassSlope;
+            float snowWeight = snowAltitude * snowSlope;
             
             // Blend Textures Color and Roughness
-            finalColor = grassColor; 
-            finalColor = mix(finalColor, rockColor, treeFactor); 
-            finalColor = mix(finalColor, snowColor, snowFactor);
+            finalColor = rockColor; 
+            finalColor = mix(finalColor, grassColor, grassWeight); 
+            finalColor = mix(finalColor, snowColor, snowWeight);
 
-            finalRoughness = grassR;
-            finalRoughness = mix(finalRoughness, rockR, treeFactor);
-            finalRoughness = mix(finalRoughness, snowR, snowFactor);
+            finalRoughness = rockR;
+            finalRoughness = mix(finalRoughness, grassR, grassWeight);
+            finalRoughness = mix(finalRoughness, snowR, snowWeight);
 
             // Blend Texture Normals
-            vec3 detailNormal = grassN;
-            detailNormal = mix(detailNormal, rockN, treeFactor);
-            detailNormal = mix(detailNormal, snowN, snowFactor);
+            vec3 detailNormal = rockN;
+            detailNormal = mix(detailNormal, grassN, grassWeight);
+            detailNormal = mix(detailNormal, snowN, snowWeight);
 
             // Merge Texture Normal with Base Geometry Normal
             finalNormal = normalize(vNormal + detailNormal * uNormalStrength);
