@@ -54,28 +54,54 @@ export default function Terrain({
   setIsLoading,
   setLoadingText,
 }) {
-  const basePath = import.meta.env.BASE_URL;
+  // Leva Controls for biome parameters
+  const {
+    Palette,
+    SnowLine,
+    GrassLine,
+    BlendSoftness,
+    GrassSlope,
+    SnowSlope,
+    SlopeSoftness,
+    TextureScale,
+  } = useControls("Biome Settings", {
+    Palette: {
+      options: TERRAIN_PALETTES,
+      value: TERRAIN_PALETTES[0], // Ensure this maps to your folder names (e.g., "Basalt")
+    },
+    SnowLine: { value: 1.2, label: "Snow Line", min: -20.0, max: 40.0 },
+    GrassLine: { value: -4.6, label: "Grass Line", min: -40.0, max: 40.0 },
+    BlendSoftness: { value: 8.0, label: "Texture Blending Softness", min: 0.1, max: 10.0 },
+    GrassSlope: { value: 0.7, label: "Grass Slope", min: 0.0, max: 1.0, step: 0.01 },
+    SnowSlope: { value: 0.65, label: "Snow Slope", min: 0.0, max: 1.0, step: 0.01 },
+    SlopeSoftness: { value: 0.15, label: "Slope Softness", min: 0.01, max: 0.5, step: 0.01 },
+    TextureScale: { value: 10.0, label: "Texture Scale", min: 1.0, max: 50.0 },
+  });
 
-  const [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm] = useLoader( // Textures for terrain
+  const basePath = `${import.meta.env.BASE_URL}${Palette}/`;
+
+  const [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm] = useLoader(
     THREE.TextureLoader,
     [
-      `${basePath}2kGrassPacked.png`,
-      `${basePath}2kSnowPacked.png`,
-      `${basePath}2kRockPacked.png`,
-      `${basePath}2kGrassNormal.png`,
-      `${basePath}2kSnowNormal.png`,
-      `${basePath}2kRockNormal.png`,
-    ],
+      `${basePath}GrassPacked.png`,
+      `${basePath}SnowPacked.png`,
+      `${basePath}RockPacked.png`,
+      `${basePath}GrassNormal.png`,
+      `${basePath}SnowNormal.png`,
+      `${basePath}RockNormal.png`,
+    ]
   );
 
   useMemo(() => { 
     [grassTex, snowTex, rockTex].forEach((tex) => { // Wrap the color/roughness maps in sRGB
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
       tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
     });
 
     [grassNorm, snowNorm, rockNorm].forEach((tex) => { // Wrap the normal maps
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.needsUpdate = true;
     });
   }, [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm]);
 
@@ -135,7 +161,7 @@ export default function Terrain({
       },
       Seed: { value: 69, min: 0, max: 1000, step: 1 },
       Scale: { value: 100.0, min: 1.0, max: InsaneMode ? 500.0 : 100.0 },
-      Height: { value: 20.0, min: 1.0, max: InsaneMode ? 500.0 : 100.0 },
+      Height: { value: 30.0, min: 1.0, max: InsaneMode ? 500.0 : 100.0 },
       Octaves: { value: 9, min: 1, max: InsaneMode ? 20 : 10, step: 1 },
       Persistence: { value: 0.47, min: 0.1, max: InsaneMode ? 2.0 : 1.0 },
     },
@@ -147,30 +173,6 @@ export default function Terrain({
   () => buildTerrainGeometry(100, 1000, terrainParams.Segments || 512),
   [terrainParams.Segments],
 );
-
-  // Leva Controls for biome parameters
-  const {
-    Palette,
-    SnowLine,
-    GrassLine,
-    BlendSoftness,
-    GrassSlope,
-    SnowSlope,
-    SlopeSoftness,
-    TextureScale,
-  } = useControls("Biome Settings", {
-    Palette: {
-      options: TERRAIN_PALETTES,
-      value: TERRAIN_PALETTES["Vibrant"],
-    },
-    SnowLine: { value: 1.2, label: "Snow Line", min: -20.0, max: 40.0 },
-    GrassLine: { value: -7.0, label: "Grass Line", min: -40.0, max: 40.0 },
-    BlendSoftness: { value: 8.0, label: "Texture Blending Softness", min: 0.1, max: 10.0 },
-    GrassSlope: { value: 0.7, label: "Grass Slope", min: 0.0, max: 1.0, step: 0.01 },
-    SnowSlope: { value: 0.65, label: "Snow Slope", min: 0.0, max: 1.0, step: 0.01 },
-    SlopeSoftness: { value: 0.15, label: "Slope Softness", min: 0.01, max: 0.5, step: 0.01 },
-    TextureScale: { value: 10.0, label: "Texture Scale", min: 1.0, max: 50.0 },
-  });
 
   // Convert hex strings to THREE.Color objects only when the dropdown changes
   // const biomeColors = useMemo(() => {

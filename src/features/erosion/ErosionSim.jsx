@@ -51,28 +51,79 @@ export default function ErosionSim({
 }) {
   const { insaneMode, segments, heights, terrainSize } = initialData;
 
-  const basePath = import.meta.env.BASE_URL;
+  // Leva Controls for biome parameters
+  const {
+    Palette,
+    SnowLine,
+    GrassLine,
+    BlendSoftness,
+    GrassSlope,
+    SnowSlope,
+    SlopeSoftness,
+    TextureScale,
+  } = useControls("Biome Settings", {
+    Palette: {
+      options: TERRAIN_PALETTES,
+      value: TERRAIN_PALETTES[0], // Ensure this maps to your folder names (e.g., "Basalt")
+    },
+    SnowLine: { value: 1.2, label: "Snow Line", min: -20.0, max: 40.0 },
+    GrassLine: { value: -4.6, label: "Grass Line", min: -40.0, max: 40.0 },
+    BlendSoftness: {
+      value: 8.0,
+      label: "Texture Blending Softness",
+      min: 0.1,
+      max: 10.0,
+    },
+    GrassSlope: {
+      value: 0.7,
+      label: "Grass Slope",
+      min: 0.0,
+      max: 1.0,
+      step: 0.01,
+    },
+    SnowSlope: {
+      value: 0.65,
+      label: "Snow Slope",
+      min: 0.0,
+      max: 1.0,
+      step: 0.01,
+    },
+    SlopeSoftness: {
+      value: 0.15,
+      label: "Slope Softness",
+      min: 0.01,
+      max: 0.5,
+      step: 0.01,
+    },
+    TextureScale: { value: 10.0, label: "Texture Scale", min: 1.0, max: 50.0 },
+  });
+
+  const basePath = `${import.meta.env.BASE_URL}${Palette}/`;
 
   const [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm] = useLoader(
     THREE.TextureLoader,
     [
-      `${basePath}2kGrassPacked.png`,
-      `${basePath}2kSnowPacked.png`,
-      `${basePath}2kRockPacked.png`,
-      `${basePath}2kGrassNormal.png`,
-      `${basePath}2kSnowNormal.png`,
-      `${basePath}2kRockNormal.png`,
+      `${basePath}GrassPacked.png`,
+      `${basePath}SnowPacked.png`,
+      `${basePath}RockPacked.png`,
+      `${basePath}GrassNormal.png`,
+      `${basePath}SnowNormal.png`,
+      `${basePath}RockNormal.png`,
     ],
   );
 
   useMemo(() => {
     [grassTex, snowTex, rockTex].forEach((tex) => {
+      // Wrap the color/roughness maps in sRGB
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
       tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
     });
 
     [grassNorm, snowNorm, rockNorm].forEach((tex) => {
+      // Wrap the normal maps
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.needsUpdate = true;
     });
   }, [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm]);
 
@@ -104,65 +155,55 @@ export default function ErosionSim({
     setLoadingText("Baking Textures & Generating .glb...");
 
     exportTerrainToGLB(
-      gl,                          // WebGL Renderer
-      geometryRef.current,         // Your live mesh
-      heights,                     // Raw height data
-      segments,                    // Resolution
-      terrainSize,                 // Size (100)
-      includeTextures,             // Boolean flag
+      gl, // WebGL Renderer
+      geometryRef.current, // Your live mesh
+      heights, // Raw height data
+      segments, // Resolution
+      terrainSize, // Size (100)
+      includeTextures, // Boolean flag
       () => setIsLoading(false),
-      () => setIsLoading(false)
+      () => setIsLoading(false),
     );
   };
-
-  // Duplicate of Biome settings Leva control panel from Terrain component
-  const {
-    Palette,
-    SnowLine,
-    GrassLine,
-    BlendSoftness,
-    GrassSlope,
-    SnowSlope,
-    SlopeSoftness,
-    TextureScale,
-  } = useControls("Biome Settings", {
-    Palette: {
-      options: TERRAIN_PALETTES,
-      value: TERRAIN_PALETTES["Vibrant"],
-    },
-    SnowLine: { value: 1.2, label: "Snow Line", min: -20.0, max: 40.0 },
-    GrassLine: { value: -7.0, label: "Grass Line", min: -40.0, max: 40.0 },
-    BlendSoftness: { value: 8.0, label: "Texture Blending Softness", min: 0.1, max: 10.0 },
-    GrassSlope: { value: 0.7, label: "Grass Slope", min: 0.0, max: 1.0, step: 0.01 },
-    SnowSlope: { value: 0.65, label: "Snow Slope", min: 0.0, max: 1.0, step: 0.01 },
-    SlopeSoftness: { value: 0.15, label: "Slope Softness", min: 0.01, max: 0.5, step: 0.01 },
-    TextureScale: { value: 10.0, label: "Texture Scale", min: 1.0, max: 50.0 },
-  });
-
-  // Convert hex strings to THREE.Color objects only when the dropdown changes
-  const biomeColors = useMemo(() => {
-    return {
-      snow: new THREE.Color(Palette.snow),
-      rock: new THREE.Color(Palette.rock),
-      Grass: new THREE.Color(Palette.Grass),
-    };
-  }, [Palette]);
 
   // Leva controls for erosion parameters
   useControls(
     "Erosion Settings",
     () => ({
       InsaneMode: { value: insaneMode, label: "Insane Mode", disabled: true },
-      DropsK: { label: "Drops (k)", value: 12, min: 1, max: insaneMode ? 500 : 50, step: 1 },
+      DropsK: {
+        label: "Drops (k)",
+        value: 12,
+        min: 1,
+        max: insaneMode ? 500 : 50,
+        step: 1,
+      },
       ErosionRate: { value: 0.1, label: "Erosion Rate", min: 0.01, max: 1.0 },
-      TalusAngle: { value: 0.8, label: "Talus Angle", min: 0.1, max: 3.0, step: 0.1 },
-      ThermalIterations: { value: 10, label: "Thermal Iterations", min: 0, max: insaneMode ? 500 : 20, step: 1 },
+      TalusAngle: {
+        value: 0.8,
+        label: "Talus Angle",
+        min: 0.1,
+        max: 3.0,
+        step: 0.1,
+      },
+      ThermalIterations: {
+        value: 10,
+        label: "Thermal Iterations",
+        min: 0,
+        max: insaneMode ? 500 : 20,
+        step: 1,
+      },
       "Run Erosion": button((get) => {
         const liveDropCount = get("Erosion Settings.DropsK") * 1000;
         const liveErosionRate = get("Erosion Settings.ErosionRate");
         const liveTalus = get("Erosion Settings.TalusAngle");
         const liveThermalIters = get("Erosion Settings.ThermalIterations");
-        runSimulation(liveDropCount, liveErosionRate, liveTalus, liveThermalIters);
+        runSimulation(
+          liveDropCount,
+          liveErosionRate,
+          liveTalus,
+          liveThermalIters,
+        );
       }),
       "Return to Generator": button(() => {
         onReturn();
@@ -171,18 +212,15 @@ export default function ErosionSim({
     [insaneMode],
   );
 
-  useControls(
-    "Export", 
-    () => ({
-      IncludeTextures: { value: true, label: "Export Textures" },
-      "Export Terrain": button((get) => {
-        // Fetch the boolean using the new folder namespace
-        const includeTex = get("Export.IncludeTextures");
-        
-        setTimeout(() => handleExport(includeTex), 50); 
-      }),
-    })
-  );
+  useControls("Export", () => ({
+    IncludeTextures: { value: true, label: "Export Textures" },
+    "Export Terrain": button((get) => {
+      // Fetch the boolean using the new folder namespace
+      const includeTex = get("Export.IncludeTextures");
+
+      setTimeout(() => handleExport(includeTex), 50);
+    }),
+  }));
 
   // Create an unmodified BoxGeometry once to use as a structural template
   const baseGeometry = useMemo(() => {
