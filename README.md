@@ -32,9 +32,9 @@ Following hydraulic weathering, a thermal erosion pass is applied to simulate th
 To elevate visual fidelity, the terrain employs dynamic, algorithmic texturing based on local topology. The custom fragment shader evaluates the steepness (derived from the dynamically calculated normals) and the global height of each vertex to seamlessly blend distinct surface materials. These materials utilize color, normal, and roughness maps to accurately simulate environmental features, assigning rock textures to sheer cliffs and soil or grass to flatter plains.
 
 ### Rendering Performance
-Real-time manipulation of 3D geometry is computationally intensive. To maintain consistent frame rates while updating the 3D model, the rendering pipeline offloads displacement calculations to the GPU. 
+Real-time manipulation of 3D geometry is computationally intensive. To maintain a responsive UI during the O(N^2) hydraulic and thermal erosion simulations, mathematical calculations are offloaded to background threads using Web Workers. Once the final heightmap array is computed, it is passed to the GPU as a buffer geometry. At render time, a custom vertex shader handles the physical displacement and dynamic normal recalculations, which allows for consistent frame rates during camera manipulation.
 
-The application stores a 1-dimensional array of the mesh's vertices directly in VRAM as a buffer geometry. At render time, a custom vertex shader calculates the displacement utilizing the combined noise and erosion data, mapping each vertex to its new coordinate. 
+To be specific, the application stores a 1-dimensional array of the mesh's vertices directly in VRAM as a buffer geometry. At render time, a custom vertex shader calculates the displacement utilizing the combined noise and erosion data, mapping each vertex to its new coordinate. 
 
 During this vertex displacement, normal vectors are recalculated dynamically and passed to the fragment shader. The fragment shader evaluates these normals for both the procedural texturing rules and calculates the dot product against a global directional spotlight to scale the local illumination for accurate diffuse lighting.
 

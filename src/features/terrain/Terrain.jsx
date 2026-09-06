@@ -71,39 +71,89 @@ export default function Terrain({
     },
     SnowLine: { value: 1.2, label: "Snow Line", min: -20.0, max: 40.0 },
     GrassLine: { value: -4.6, label: "Grass Line", min: -40.0, max: 40.0 },
-    BlendSoftness: { value: 8.0, label: "Texture Blending Softness", min: 0.1, max: 10.0 },
-    GrassSlope: { value: 0.7, label: "Grass Slope", min: 0.0, max: 1.0, step: 0.01 },
-    SnowSlope: { value: 0.65, label: "Snow Slope", min: 0.0, max: 1.0, step: 0.01 },
-    SlopeSoftness: { value: 0.15, label: "Slope Softness", min: 0.01, max: 0.5, step: 0.01 },
+    BlendSoftness: {
+      value: 8.0,
+      label: "Texture Blending Softness",
+      min: 0.1,
+      max: 10.0,
+    },
+    GrassSlope: {
+      value: 0.7,
+      label: "Grass Slope",
+      min: 0.0,
+      max: 1.0,
+      step: 0.01,
+    },
+    SnowSlope: {
+      value: 0.65,
+      label: "Snow Slope",
+      min: 0.0,
+      max: 1.0,
+      step: 0.01,
+    },
+    SlopeSoftness: {
+      value: 0.15,
+      label: "Slope Softness",
+      min: 0.01,
+      max: 0.5,
+      step: 0.01,
+    },
     TextureScale: { value: 10.0, label: "Texture Scale", min: 1.0, max: 50.0 },
   });
 
   const basePath = `${import.meta.env.BASE_URL}${Palette}/`;
 
-  const [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm] = useLoader(
-    THREE.TextureLoader,
-    [
+  const textureUrls = useMemo(
+    () => [
       `${basePath}GrassPacked.png`,
       `${basePath}SnowPacked.png`,
       `${basePath}RockPacked.png`,
       `${basePath}GrassNormal.png`,
       `${basePath}SnowNormal.png`,
       `${basePath}RockNormal.png`,
-    ]
+    ],
+    [basePath],
   );
 
-  useMemo(() => { 
-    [grassTex, snowTex, rockTex].forEach((tex) => { // Wrap the color/roughness maps in sRGB
+  const [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm] = useLoader(
+    THREE.TextureLoader,
+    textureUrls,
+  );
+
+  useMemo(() => {
+    [grassTex, snowTex, rockTex].forEach((tex) => {
+      // Wrap the color/roughness maps in sRGB
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.needsUpdate = true;
     });
 
-    [grassNorm, snowNorm, rockNorm].forEach((tex) => { // Wrap the normal maps
+    [grassNorm, snowNorm, rockNorm].forEach((tex) => {
+      // Wrap the normal maps
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
       tex.needsUpdate = true;
     });
   }, [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm]);
+
+  useEffect(() => {
+    // Cleanup function to free GPU memory and clear R3F cache on unmount/theme change
+    return () => {
+      const textures = [
+        grassTex,
+        snowTex,
+        rockTex,
+        grassNorm,
+        snowNorm,
+        rockNorm,
+      ];
+      textures.forEach((tex, index) => {
+        if (tex) {
+          tex.dispose();
+          useLoader.clear(THREE.TextureLoader, textureUrls[index]);
+        }
+      });
+    };
+  }, [textureUrls, grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm]);
 
   // Reference to the terrainMaterial element
   const materialRef = useRef();
@@ -170,18 +220,9 @@ export default function Terrain({
 
   // UseMemo prevents the geometry from rebuilding every frame, object is the geometry of the terrain mesh/bounding box
   const geometry = useMemo(
-  () => buildTerrainGeometry(100, 1000, terrainParams.Segments || 512),
-  [terrainParams.Segments],
-);
-
-  // Convert hex strings to THREE.Color objects only when the dropdown changes
-  // const biomeColors = useMemo(() => {
-  //   return {
-  //     snow: new THREE.Color(Palette.snow),
-  //     rock: new THREE.Color(Palette.rock),
-  //     Grass: new THREE.Color(Palette.Grass),
-  //   };
-  // }, [Palette]);
+    () => buildTerrainGeometry(100, 1000, terrainParams.Segments || 512),
+    [terrainParams.Segments],
+  );
 
   // Pipeline for baking the terrain pre erosion simulation
   useControls("Pipeline", () => ({
@@ -190,7 +231,8 @@ export default function Terrain({
       setIsLoading(true);
       setLoadingText("Baking Terrain Data...");
 
-      const liveParams = { // Gather terrain parameters for one-time terrain bake
+      const liveParams = {
+        // Gather terrain parameters for one-time terrain bake
         Seed: get("Terrain Settings.Seed"),
         Scale: get("Terrain Settings.Scale"),
         Height: get("Terrain Settings.Height"),
@@ -223,7 +265,8 @@ export default function Terrain({
         worker.terminate(); // Clean up worker
       };
 
-      worker.onerror = (error) => { // Catch baking error on worker
+      worker.onerror = (error) => {
+        // Catch baking error on worker
         console.error("Worker error:", error);
         setIsLoading(false);
         worker.terminate();

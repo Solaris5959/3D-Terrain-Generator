@@ -100,9 +100,8 @@ export default function ErosionSim({
 
   const basePath = `${import.meta.env.BASE_URL}${Palette}/`;
 
-  const [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm] = useLoader(
-    THREE.TextureLoader,
-    [
+  const textureUrls = useMemo(
+    () => [
       `${basePath}GrassPacked.png`,
       `${basePath}SnowPacked.png`,
       `${basePath}RockPacked.png`,
@@ -110,6 +109,12 @@ export default function ErosionSim({
       `${basePath}SnowNormal.png`,
       `${basePath}RockNormal.png`,
     ],
+    [basePath],
+  );
+
+  const [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm] = useLoader(
+    THREE.TextureLoader,
+    textureUrls,
   );
 
   useMemo(() => {
@@ -126,6 +131,25 @@ export default function ErosionSim({
       tex.needsUpdate = true;
     });
   }, [grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm]);
+
+  useEffect(() => {
+    return () => {
+      const textures = [
+        grassTex,
+        snowTex,
+        rockTex,
+        grassNorm,
+        snowNorm,
+        rockNorm,
+      ];
+      textures.forEach((tex, index) => {
+        if (tex) {
+          tex.dispose();
+          useLoader.clear(THREE.TextureLoader, textureUrls[index]);
+        }
+      });
+    };
+  }, [textureUrls, grassTex, snowTex, rockTex, grassNorm, snowNorm, rockNorm]);
 
   const materialRef = useRef();
   const geometryRef = useRef();

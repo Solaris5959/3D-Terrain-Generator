@@ -1,4 +1,6 @@
-import React, { useState, Suspense } from "react";
+import React, { useState, Suspense, useEffect } from "react";
+import * as THREE from "three";
+import { Leva } from "leva";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import Terrain from "../features/terrain/Terrain";
@@ -15,6 +17,9 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("");
 
+  // State for detecting if the user is on a small screen / mobile device
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
   const backgroundColor = "#171513";
 
   // Callback function to handle baking the terrain data from the Terrain component
@@ -23,8 +28,55 @@ export default function App() {
     setAppMode("ERODE");
   };
 
+  // Effect to handle leva panel collapse on mobile devices
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handleResize);
+    
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    // Hook into the global loader manager, deferring state updates to the next tick 
+    // to avoid React's "Cannot update component during render" warnings.
+    THREE.DefaultLoadingManager.onStart = () => {
+      setTimeout(() => {
+        setIsLoading(true);
+        setLoadingText(`Downloading Textures... 0%`);
+      }, 0);
+    };
+
+    THREE.DefaultLoadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
+      setTimeout(() => {
+        setLoadingText(`Downloading Textures... ${Math.round((itemsLoaded / itemsTotal) * 100)}%`);
+      }, 0);
+    };
+
+    THREE.DefaultLoadingManager.onLoad = () => {
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 0);
+    };
+
+    THREE.DefaultLoadingManager.onError = () => {
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 0);
+    };
+
+    // Cleanup on unmount
+    return () => {
+      THREE.DefaultLoadingManager.onStart = null;
+      THREE.DefaultLoadingManager.onProgress = null;
+      THREE.DefaultLoadingManager.onLoad = null;
+      THREE.DefaultLoadingManager.onError = null;
+    };
+  }, []);
+
   return (
     <div style={{ width: "100vw", height: "100vh", position: "relative" }}>
+      {/* Collapse Leva panel if user is on a mobile device */}
+      <Leva collapsed={isMobile} />
       {/* Loading Overlay */}
       {isLoading && (
         <div className="loading-overlay">
