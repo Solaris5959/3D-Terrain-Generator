@@ -194,21 +194,23 @@ export default function ErosionSim({
   useControls(
     "Erosion Settings",
     () => ({
-      InsaneMode: { value: insaneMode, label: "Insane Mode", disabled: true },
+      InsaneMode: { value: insaneMode, label: "Insane Mode", disabled: true, hint: "Warning: Enabling this dramatically increases particle count and may impact performance.", },
       DropsK: {
         label: "Drops (k)",
         value: 12,
         min: 1,
         max: insaneMode ? 500 : 50,
         step: 1,
+        hint: "The number of water drops to simulate. Higher values will create more detailed erosion patterns.",
       },
-      ErosionRate: { value: 0.1, label: "Erosion Rate", min: 0.01, max: 1.0 },
+      ErosionRate: { value: 0.1, label: "Erosion Rate", min: 0.01, max: 1.0, hint: "Controls the rate at which erosion occurs. Higher values will create more pronounced erosion features." },
       TalusAngle: {
         value: 0.8,
         label: "Talus Angle",
         min: 0.1,
         max: 3.0,
         step: 0.1,
+        hint: "The maximum angle of a stable slope. Determines how steep the generated terrain can be before slipping.",
       },
       ThermalIterations: {
         value: 10,
@@ -216,6 +218,7 @@ export default function ErosionSim({
         min: 0,
         max: insaneMode ? 500 : 20,
         step: 1,
+        hint: "How many passes of thermal erosion to apply after the hydraulic erosion simulation. Higher values will smooth out the terrain more, but may also reduce detail.",
       },
       "Run Erosion": button((get) => {
         const liveDropCount = get("Erosion Settings.DropsK") * 1000;

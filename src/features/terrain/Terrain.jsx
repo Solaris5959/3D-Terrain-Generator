@@ -183,7 +183,10 @@ export default function Terrain({
 
   // Global Settings Controls
   const { InsaneMode, Model } = useControls("Settings", {
-    InsaneMode: false,
+    InsaneMode: {
+      value: false,
+      hint: "Warning: Enabling this dramatically increases particle count and may impact performance.",
+    },
     Model: { options: ["Smooth Perlin", "Ridged Perlin"] },
   });
 
@@ -209,11 +212,22 @@ export default function Terrain({
         ),
         value: TERRAIN_SEGMENTS["512"],
       },
-      Seed: { value: 69, min: 0, max: 1000, step: 1 },
-      Scale: { value: 100.0, min: 1.0, max: InsaneMode ? 500.0 : 100.0 },
-      Height: { value: 30.0, min: 1.0, max: InsaneMode ? 500.0 : 100.0 },
-      Octaves: { value: 9, min: 1, max: InsaneMode ? 20 : 10, step: 1 },
-      Persistence: { value: 0.47, min: 0.1, max: InsaneMode ? 2.0 : 1.0 },
+      Seed: { value: 69, min: 0, max: 1000, step: 1, hint: "Random seed for terrain generation. Changing this will create a different terrain." },
+      Scale: { value: 100.0, min: 1.0, max: InsaneMode ? 500.0 : 100.0, hint: "Controls the overall size of the terrain." },
+      Height: { value: 30.0, min: 1.0, max: InsaneMode ? 500.0 : 100.0, hint: "Controls the overall height of the terrain." },
+      Octaves: {
+        value: 9,
+        min: 1,
+        max: InsaneMode ? 20 : 10,
+        step: 1,
+        hint: "Number of noise layers combined together. Higher values add finer details.",
+      },
+      Persistence: {
+        value: 0.47,
+        min: 0.1,
+        max: InsaneMode ? 2.0 : 1.0,
+        hint: "Controls how much each pass impacts the height of the terrain. Higher values create greater contrast.",
+      },
     },
     [InsaneMode],
   );
