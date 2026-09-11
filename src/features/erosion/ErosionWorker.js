@@ -2,7 +2,8 @@ import { ErosionSimulator } from "./ErosionAlgorithm";
 
 // Worker Process for running erosion simulation
 self.onmessage = function (e) {
-  const { heights, segments, dropCount, erosionRate, talus, thermalIters } = e.data;
+  const { heights, segments, dropCount, erosionRate, talus, thermalIters } =
+    e.data;
 
   // heights is passed as a Float32Array
   const sim = new ErosionSimulator(heights, segments + 1);

@@ -32,12 +32,12 @@ export default function App() {
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", handleResize);
-    
+
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   useEffect(() => {
-    // Hook into the global loader manager, deferring state updates to the next tick 
+    // Hook into the global loader manager, deferring state updates to the next tick
     // to avoid React's "Cannot update component during render" warnings.
     THREE.DefaultLoadingManager.onStart = () => {
       setTimeout(() => {
@@ -48,7 +48,9 @@ export default function App() {
 
     THREE.DefaultLoadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
       setTimeout(() => {
-        setLoadingText(`Downloading Textures... ${Math.round((itemsLoaded / itemsTotal) * 100)}%`);
+        setLoadingText(
+          `Downloading Textures... ${Math.round((itemsLoaded / itemsTotal) * 100)}%`,
+        );
       }, 0);
     };
 

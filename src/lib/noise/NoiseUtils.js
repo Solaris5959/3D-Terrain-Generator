@@ -1,10 +1,18 @@
 /**
  * GLSL Math Emulation Functions
  */
-function fract(x) { return x - Math.floor(x); }
-function mod289(x) { return x - Math.floor(x * (1.0 / 289.0)) * 289.0; }
-function permute(x) { return mod289(((x * 34.0) + 1.0) * x); }
-function mix(a, b, t) { return a * (1.0 - t) + b * t; }
+function fract(x) {
+  return x - Math.floor(x);
+}
+function mod289(x) {
+  return x - Math.floor(x * (1.0 / 289.0)) * 289.0;
+}
+function permute(x) {
+  return mod289((x * 34.0 + 1.0) * x);
+}
+function mix(a, b, t) {
+  return a * (1.0 - t) + b * t;
+}
 
 /**
  * JS implementation of the TerrainShader GLSL cnoise function
@@ -47,21 +55,33 @@ function cnoise(px, py) {
   let gy11 = Math.abs(gx11) - 0.5;
 
   // tx = floor(gx + 0.5); gx = gx - tx;
-  let tx00 = Math.floor(gx00 + 0.5); gx00 -= tx00;
-  let tx10 = Math.floor(gx10 + 0.5); gx10 -= tx10;
-  let tx01 = Math.floor(gx01 + 0.5); gx01 -= tx01;
-  let tx11 = Math.floor(gx11 + 0.5); gx11 -= tx11;
+  let tx00 = Math.floor(gx00 + 0.5);
+  gx00 -= tx00;
+  let tx10 = Math.floor(gx10 + 0.5);
+  gx10 -= tx10;
+  let tx01 = Math.floor(gx01 + 0.5);
+  gx01 -= tx01;
+  let tx11 = Math.floor(gx11 + 0.5);
+  gx11 -= tx11;
 
   // norm = 1.79284291400159 - 0.85373472095314 * dot(g,g)
-  let norm00 = 1.79284291400159 - 0.85373472095314 * (gx00 * gx00 + gy00 * gy00);
-  let norm10 = 1.79284291400159 - 0.85373472095314 * (gx10 * gx10 + gy10 * gy10);
-  let norm01 = 1.79284291400159 - 0.85373472095314 * (gx01 * gx01 + gy01 * gy01);
-  let norm11 = 1.79284291400159 - 0.85373472095314 * (gx11 * gx11 + gy11 * gy11);
+  let norm00 =
+    1.79284291400159 - 0.85373472095314 * (gx00 * gx00 + gy00 * gy00);
+  let norm10 =
+    1.79284291400159 - 0.85373472095314 * (gx10 * gx10 + gy10 * gy10);
+  let norm01 =
+    1.79284291400159 - 0.85373472095314 * (gx01 * gx01 + gy01 * gy01);
+  let norm11 =
+    1.79284291400159 - 0.85373472095314 * (gx11 * gx11 + gy11 * gy11);
 
-  gx00 *= norm00; gy00 *= norm00;
-  gx10 *= norm10; gy10 *= norm10;
-  gx01 *= norm01; gy01 *= norm01;
-  gx11 *= norm11; gy11 *= norm11;
+  gx00 *= norm00;
+  gy00 *= norm00;
+  gx10 *= norm10;
+  gy10 *= norm10;
+  gx01 *= norm01;
+  gy01 *= norm01;
+  gx11 *= norm11;
+  gy11 *= norm11;
 
   // dot products
   let n00 = gx00 * fx0 + gy00 * fy0;
@@ -115,7 +135,7 @@ function fbmRidged(px, py, octaves, persistence, seed) {
 
     n *= weight;
 
-    weight = Math.max(0.0, Math.min(n * 2.0, 1.0) );
+    weight = Math.max(0.0, Math.min(n * 2.0, 1.0));
 
     value += amplitude * n;
     frequency *= 2.0;
@@ -130,28 +150,34 @@ function fbmRidged(px, py, octaves, persistence, seed) {
 export function generateCPUHeightmap(segments, terrainSize, params) {
   const { Seed, Scale, Height, Octaves, Persistence, Model } = params;
 
-  var fbm = (Model == "Smooth Perlin") ? fbmSmooth : fbmRidged;
-  
+  var fbm = Model == "Smooth Perlin" ? fbmSmooth : fbmRidged;
+
   const resolution = segments + 1;
   const heightMap = new Float32Array(resolution * resolution);
-  
+
   // We need the half size to map indices 0 -> 512 to world coordinates -50 -> 50
   const halfSize = terrainSize / 2.0;
 
   for (let zIndex = 0; zIndex < resolution; zIndex++) {
     for (let xIndex = 0; xIndex < resolution; xIndex++) {
-      
       // Convert array indices to world coordinates (px, pz)
       // Matches a THREE.PlaneGeometry spanning from -50 to 50
       const px = (xIndex / segments) * terrainSize - halfSize;
       const pz = (zIndex / segments) * terrainSize - halfSize;
 
       // Exact equivalent of getElevation() in shader
-      const h = fbm(px * (1.0 / Scale), pz * (1.0 / Scale), Octaves, Persistence, Seed) * Height;
+      const h =
+        fbm(
+          px * (1.0 / Scale),
+          pz * (1.0 / Scale),
+          Octaves,
+          Persistence,
+          Seed,
+        ) * Height;
 
       // Calculate flat array index
-      const index = xIndex + (zIndex * resolution);
-      
+      const index = xIndex + zIndex * resolution;
+
       heightMap[index] = h;
     }
   }

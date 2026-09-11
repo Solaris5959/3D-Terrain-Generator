@@ -212,9 +212,25 @@ export default function Terrain({
         ),
         value: TERRAIN_SEGMENTS["512"],
       },
-      Seed: { value: 69, min: 0, max: 1000, step: 1, hint: "Random seed for terrain generation. Changing this will create a different terrain." },
-      Scale: { value: 100.0, min: 1.0, max: InsaneMode ? 500.0 : 100.0, hint: "Controls the overall size of the terrain." },
-      Height: { value: 30.0, min: 1.0, max: InsaneMode ? 500.0 : 100.0, hint: "Controls the overall height of the terrain." },
+      Seed: {
+        value: 69,
+        min: 0,
+        max: 1000,
+        step: 1,
+        hint: "Random seed for terrain generation. Changing this will create a different terrain.",
+      },
+      Scale: {
+        value: 100.0,
+        min: 1.0,
+        max: InsaneMode ? 500.0 : 100.0,
+        hint: "Controls the overall size of the terrain.",
+      },
+      Height: {
+        value: 30.0,
+        min: 1.0,
+        max: InsaneMode ? 500.0 : 100.0,
+        hint: "Controls the overall height of the terrain.",
+      },
       Octaves: {
         value: 9,
         min: 1,

@@ -1,6 +1,6 @@
-# 3D Terrain Generator
+# TerraNova
 
-**[Live Demo](https://solaris5959.github.io/3D-Terrain-Generator/)**
+**[Live Demo](https://solaris5959.github.io/TerraNova/)**
 
 (GIF demo of sim goes here)
 

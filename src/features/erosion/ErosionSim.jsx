@@ -194,7 +194,12 @@ export default function ErosionSim({
   useControls(
     "Erosion Settings",
     () => ({
-      InsaneMode: { value: insaneMode, label: "Insane Mode", disabled: true, hint: "Warning: Enabling this dramatically increases particle count and may impact performance.", },
+      InsaneMode: {
+        value: insaneMode,
+        label: "Insane Mode",
+        disabled: true,
+        hint: "Warning: Enabling this dramatically increases particle count and may impact performance.",
+      },
       DropsK: {
         label: "Drops (k)",
         value: 12,
@@ -203,7 +208,13 @@ export default function ErosionSim({
         step: 1,
         hint: "The number of water drops to simulate. Higher values will create more detailed erosion patterns.",
       },
-      ErosionRate: { value: 0.1, label: "Erosion Rate", min: 0.01, max: 1.0, hint: "Controls the rate at which erosion occurs. Higher values will create more pronounced erosion features." },
+      ErosionRate: {
+        value: 0.1,
+        label: "Erosion Rate",
+        min: 0.01,
+        max: 1.0,
+        hint: "Controls the rate at which erosion occurs. Higher values will create more pronounced erosion features.",
+      },
       TalusAngle: {
         value: 0.8,
         label: "Talus Angle",
