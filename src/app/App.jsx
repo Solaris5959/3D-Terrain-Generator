@@ -78,7 +78,7 @@ export default function App() {
   return (
     <div style={{ width: "100vw", height: "100vh", position: "relative" }}>
       {/* Collapse Leva panel if user is on a mobile device */}
-      <Leva collapsed={isMobile} />
+      <Leva collapsed={true} hidden={true} />
       {/* Loading Overlay */}
       {isLoading && (
         <div className="loading-overlay">
@@ -130,7 +130,7 @@ export default function App() {
       </Canvas>
 
       {/* Interface overlay component for the welcome modal and Leva panel */}
-      <InterfaceOverlay started={started} setStarted={setStarted} />
+      <InterfaceOverlay started={started} setStarted={setStarted} isMobile={isMobile} />
     </div>
   );
 }

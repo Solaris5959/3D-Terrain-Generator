@@ -58,14 +58,14 @@ const theme = {
   },
 };
 
-export default function InterfaceOverlay({ started, setStarted }) {
+export default function InterfaceOverlay({ started, setStarted, isMobile }) {
   return (
     <>
       {/* Leva panel for controlling terrain parameters */}
       <Leva
         theme={theme}
         hidden={!started}
-        collapsed={false}
+        collapsed={isMobile}
         flat={false}
         oneLineLabels={true}
         titleBar={{
